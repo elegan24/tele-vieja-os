@@ -90,13 +90,40 @@ if [ -n "$ARQ_LIBRETRO" ]; then
     done
 fi
 
+# Nombres completos de los juegos de arcade ("sfa.zip" -> "Street Fighter Alpha")
+mkdir -p "$APP/datos"
+if curl -fsSL --retry 3 -o "$APP/datos/arcade.dat.tmp" \
+    "https://raw.githubusercontent.com/libretro/libretro-database/master/metadat/fbneo-split/FBNeo%20-%20Arcade%20Games.dat"; then
+    mv "$APP/datos/arcade.dat.tmp" "$APP/datos/arcade.dat"
+    echo "   Nombres de los juegos de arcade listos."
+else
+    rm -f "$APP/datos/arcade.dat.tmp"
+    amarillo "   No pude bajar los nombres de arcade: se van a ver los nombres cortos (sfa, mslug...)."
+fi
+
+# Wine, para juegos viejos de Windows (Sonic R de PC, etc.). Ocupa bastante:
+# para no instalarlo, corré el instalador así:  sudo SIN_WINE=1 ./instalar.sh
+if [ "${SIN_WINE:-0}" != 1 ]; then
+    verde "   Instalando Wine (juegos de PC)..."
+    if [ "$ARQ" = amd64 ]; then
+        dpkg --add-architecture i386
+        apt-get update
+        apt-get install -y --no-install-recommends wine wine64 wine32:i386 libwine:i386 \
+            fonts-wine libgl1-mesa-dri:i386 libasound2-plugins:i386 libsdl2-2.0-0:i386 \
+            || amarillo "   No se pudo instalar Wine: los juegos de PC no van a andar."
+    else
+        apt-get install -y --no-install-recommends wine wine32 fonts-wine libasound2-plugins \
+            || amarillo "   No se pudo instalar Wine: los juegos de PC no van a andar."
+    fi
+fi
+
 verde "==> 4/7 Creando carpetas en $CASA/TeleVieja..."
 R="$CASA/TeleVieja"
 sudo -u "$USUARIO" mkdir -p \
     "$R/Videos" "$R/Canal/Programas" "$R/Canal/Tandas" \
     "$R/Juegos/Family" "$R/Juegos/SuperNintendo" "$R/Juegos/Sega" \
     "$R/Juegos/GameBoy" "$R/Juegos/GameBoyAdvance" "$R/Juegos/NeoGeo" "$R/Juegos/PlayStation" \
-    "$R/Juegos/Nintendo64" \
+    "$R/Juegos/Nintendo64" "$R/Juegos/Arcade" "$R/Juegos/PC" \
     "$R/Historietas" "$R/Radio" "$R/Partidas" "$R/BIOS" \
     "$CASA/.config/televieja" "$CASA/.config/mpv"
 
@@ -125,6 +152,9 @@ CONTROL_CELULAR=si
 PUERTO_CELULAR=8080
 # Nintendo 64 (experimental): auto = solo si la placa de video puede; si / no para forzar
 N64=auto
+# Juegos de PC: mostrarlos en una ventana del tamaño de la pantalla (si) o dejar que
+# cambien la resolución (no). Con "si" la tele y el conversor no se enteran.
+PC_ESCRITORIO_VIRTUAL=si
 EOF
     chown "$USUARIO:$USUARIO" "$CASA/.config/televieja/opciones.conf"
 fi

@@ -451,13 +451,18 @@ class ListaSistemas(Lista):
         for s in config.SISTEMAS:
             if not config.sistema_visible(s, opciones):
                 continue
-            roms = [r for r in config.listar_en_todas(("Juegos", s["carpeta"]), s["ext"])
-                    if os.path.basename(r).lower() not in s.get("excluir", ())]
-            if s.get("discos"):
-                roms = config.filtrar_discos(roms)
-            core = config.buscar_core(s["cores"])
+            if s.get("pc"):
+                from . import wine
+                roms = wine.juegos_pc()
+                core = "wine" if wine.hay_wine() else None
+            else:
+                roms = [r for r in config.listar_en_todas(("Juegos", s["carpeta"]), s["ext"])
+                        if os.path.basename(r).lower() not in s.get("excluir", ())]
+                if s.get("discos"):
+                    roms = config.filtrar_discos(roms)
+                core = config.buscar_core(s["cores"])
             if not core:
-                extra = "falta emulador"
+                extra = "falta Wine" if s.get("pc") else "falta emulador"
             elif roms:
                 extra = str(len(roms))
             else:
@@ -477,6 +482,10 @@ class ListaSistemas(Lista):
             app.poner(Mensaje("Falta el emulador",
                               "No encontré el emulador para %s. Volvé a correr instalar.sh "
                               "con internet." % sistema["nombre"]))
+        elif not roms and sistema.get("pc"):
+            app.poner(Mensaje("No hay juegos de PC",
+                              "Poné cada juego (ya instalado) en su propia carpeta adentro de "
+                              "TeleVieja/Juegos/PC. Por ejemplo: TeleVieja/Juegos/PC/Sonic R"))
         elif not roms:
             app.poner(Mensaje("No hay juegos",
                               "Poné los juegos de %s en la carpeta TeleVieja/Juegos/%s"
@@ -489,7 +498,17 @@ class ListaJuegos(Lista):
     def __init__(self, sistema, roms, core):
         super().__init__(sistema["nombre"], ayuda="A: jugar  B: volver  L/R: letra")
         self.core = core
-        nombres = [limpiar_nombre_rom(os.path.basename(r)) for r in roms]
+        if sistema.get("nombres") == "arcade":
+            tabla = config.nombres_arcade()
+            nombres = []
+            for r in roms:
+                corto = os.path.splitext(os.path.basename(r))[0]
+                # ".x" para que no se coma lo que viene después de un punto ("Vs. Capcom")
+                nombres.append(limpiar_nombre_rom(tabla.get(corto.lower(), corto) + ".x"))
+        elif sistema.get("pc"):
+            nombres = [(os.path.basename(r), os.path.basename(r)) for r in roms]
+        else:
+            nombres = [limpiar_nombre_rom(os.path.basename(r)) for r in roms]
         cuenta = {}
         for corto, _ in nombres:
             cuenta[corto] = cuenta.get(corto, 0) + 1
@@ -497,7 +516,10 @@ class ListaJuegos(Lista):
         for rom, (corto, medio) in zip(roms, nombres):
             pares.append((corto if cuenta[corto] == 1 else medio, rom))
         pares.sort(key=lambda p: config.clave_natural(p[0]))
-        self.items = [Item(n, lambda app, rom=rom: app.jugar(self.core, rom)) for n, rom in pares]
+        if sistema.get("pc"):
+            self.items = [Item(n, lambda app, rom=rom: app.jugar_pc(rom)) for n, rom in pares]
+        else:
+            self.items = [Item(n, lambda app, rom=rom: app.jugar(self.core, rom)) for n, rom in pares]
 
 
 # --- lector de historietas ----------------------------------------------------

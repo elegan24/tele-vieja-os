@@ -76,6 +76,19 @@ def preparar_contenido():
           "\n".join("Final Fantasy VII (Disc %d).chd" % d for d in (1, 2, 3)).encode())
     tocar(os.path.join(ps1, "Juego Suelto.bin"))
     tocar(os.path.join(R, "Juegos", "Nintendo64", "Super Mario 64 (USA).z64"))
+    # Arcade: nombres cortos de FBNeo + archivos de BIOS que no tienen que aparecer
+    for n in ("sfa.zip", "mvsc.zip", "pgm.zip", "neogeo.zip", "raro.7z"):
+        tocar(os.path.join(R, "Juegos", "Arcade", n))
+    # PC: Sonic R con su instalador al lado, un juego con varios .exe y uno con jugar.txt
+    pc = os.path.join(R, "Juegos", "PC")
+    tocar(os.path.join(pc, "Sonic R", "SONICR.EXE"))
+    tocar(os.path.join(pc, "Sonic R", "SETUP.EXE"))
+    tocar(os.path.join(pc, "Sonic R", "Uninstal.exe"))
+    tocar(os.path.join(pc, "Juego Raro", "uno.exe"))
+    tocar(os.path.join(pc, "Juego Raro", "dos.exe"))
+    tocar(os.path.join(pc, "Con Archivo", "bin", "game.exe"))
+    tocar(os.path.join(pc, "Con Archivo", "otro.exe"))
+    tocar(os.path.join(pc, "Con Archivo", "jugar.txt"), b"bin\\game.exe\n")
     tocar(os.path.join(ps1, "Pistas", "Wipeout.cue"), b"FILE Wipeout.bin BINARY\n")
     tocar(os.path.join(ps1, "Pistas", "Wipeout.bin"))
     tocar(os.path.join(R, "Radio", "Kaliman", "Episodio 001.mp3"))
@@ -293,6 +306,20 @@ Max core profile version: 4.6
     assert config.analizar_glxinfo("")[0] is False
 
 
+def probar_wine():
+    from televieja import wine
+    pc = os.path.join(config.RAIZ, "Juegos", "PC")
+    exe, _ = wine.exe_de_juego(os.path.join(pc, "Sonic R"))
+    assert exe and exe.endswith("SONICR.EXE"), exe            # ignora SETUP y Uninstal
+    exe, candidatos = wine.exe_de_juego(os.path.join(pc, "Juego Raro"))
+    assert exe is None and len(candidatos) == 2                # hay que elegir con jugar.txt
+    exe, _ = wine.exe_de_juego(os.path.join(pc, "Con Archivo"))
+    assert exe and exe.endswith(os.path.join("bin", "game.exe")), exe
+    assert wine.orden("/x/a.exe", 640, 480) == ["wine", "explorer", "/desktop=TeleVieja,640x480", "/x/a.exe"]
+    env = wine.entorno()
+    assert env["WINEARCH"] == "win32" and env["WINEPREFIX"] == wine.PREFIJO
+
+
 def main():
     pygame.display.init()
     pygame.font.init()
@@ -305,6 +332,14 @@ def main():
     config.buscar_core = lambda nombres: "/falso/%s_libretro.so" % nombres[0]
     lanzados = []
     config._video_3d = (False, "prueba: placa sin 3D")  # no correr glxinfo acá
+    dat = os.path.join(TMP, "arcade.dat")
+    with open(dat, "w") as f:
+        f.write('''clrmamepro (\n\tname "FBNeo"\n)\n
+game (\n\tname "Street Fighter Alpha: Warriors' Dreams (Europe 950727)"\n\trom ( name sfa.zip size 1 crc 0 )\n)\n
+game (\n\tname "Marvel Vs. Capcom: Clash of Super Heroes (Europe 980123)"\n\trom ( name mvsc.zip size 1 crc 0 )\n)\n
+game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 crc 0 )\n)\n''')
+    config.ARCHIVO_NOMBRES_ARCADE = dat
+    probar_wine()
     probar_glxinfo()
     app = menu.App()
     app.lanzar = lambda orden, *a, **k: (lanzados.append(orden), (0, 10.0, ""))[1]
@@ -356,6 +391,43 @@ def main():
     app.actual.cargar()
     n64 = [it for it in app.actual.items if "Nintendo 64" in it.texto]
     assert n64 and n64[0].extra == "1", [(it.texto, it.extra) for it in app.actual.items]
+    arcade = [it for it in app.actual.items if it.texto.startswith("Arcade")][0]
+    assert arcade.extra == "3", arcade.extra   # sfa, mvsc, raro (sin pgm ni neogeo)
+    app.actual.sel = app.actual.items.index(arcade)
+    paso("a")
+    nombres = [it.texto for it in app.actual.items]
+    assert nombres == ["Marvel Vs. Capcom: Clash of Super Heroes", "raro",
+                       "Street Fighter Alpha: Warriors' Dreams"], nombres
+    foto("05b-arcade")
+    paso("b")
+    pcs = [it for it in app.actual.items if it.texto == "Juegos de PC"][0]
+    assert pcs.extra in ("3", "falta Wine"), pcs.extra
+    from televieja import wine
+    wine.hay_wine = lambda: True
+    wine.prefijo_listo = lambda: True
+    app.actual.cargar()
+    pcs = [it for it in app.actual.items if it.texto == "Juegos de PC"][0]
+    assert pcs.extra == "3", pcs.extra
+    app.actual.sel = app.actual.items.index(pcs)
+    paso("a")
+    assert [it.texto for it in app.actual.items] == ["Con Archivo", "Juego Raro", "Sonic R"]
+    foto("05c-pc")
+    app.actual.sel = 2
+    lanzados_pc = []
+    lanzar_original = app.lanzar
+    app.lanzar = lambda orden, *a, **k: (lanzados_pc.append((orden, k)), (0, 30.0, ""))[1]
+    paso("a")
+    orden, k = lanzados_pc[-1]
+    assert orden[:3] == ["wine", "explorer", "/desktop=TeleVieja,640x480"], orden
+    assert orden[3].endswith("SONICR.EXE") and k["cwd"].endswith("Sonic R"), (orden, k)
+    assert k["env"]["WINEPREFIX"] == wine.PREFIJO and k["cortar"] == wine.cortar
+    app.actual.sel = 1
+    paso("a")                         # "Juego Raro": hay que decirle qué .exe
+    assert isinstance(app.actual, pantallas.Mensaje) and "jugar.txt" in app.actual.texto
+    foto("05d-pc-que-exe")
+    paso("a", "b")
+    app.lanzar = lanzar_original
+    app.actual.sel = 0
     ps1 = [it for it in app.actual.items if it.texto == "PlayStation"][0]
     assert ps1.extra == "5", ps1.extra    # Crash, Tekken, FF7 (una vez), Juego Suelto, Wipeout
     paso("a")                         # Family

@@ -44,8 +44,15 @@ OPCIONES_POR_DEFECTO = {
     "RESOLUCION": "640x480",
     "CONTROL_CELULAR": "si",
     "N64": "auto",
+    "PC_ESCRITORIO_VIRTUAL": "si",
     "PUERTO_CELULAR": "8080",
 }
+
+# Archivos de BIOS de las placas arcade: no son juegos, no se muestran en la lista.
+BIOS_ARCADE = tuple(n + ext for n in (
+    "neogeo", "pgm", "skns", "decocass", "isgsm", "nmk004", "ym2608", "cchip", "midssio",
+    "bubsys", "namcoc69", "namcoc70", "namcoc75", "neocdz", "hiscore", "qsound")
+    for ext in (".zip", ".7z"))
 
 # Consolas: la primera "core" que esté instalada es la que se usa.
 SISTEMAS = [
@@ -61,7 +68,9 @@ SISTEMAS = [
     {"id": "gba", "nombre": "Game Boy Advance", "carpeta": "GameBoyAdvance",
      "ext": (".gba", ".zip"), "cores": ["gpsp", "mgba"]},
     {"id": "neogeo", "nombre": "Neo Geo", "carpeta": "NeoGeo",
-     "ext": (".zip",), "cores": ["fbneo"], "excluir": ("neogeo.zip",)},
+     "ext": (".zip",), "cores": ["fbneo"], "excluir": ("neogeo.zip",), "nombres": "arcade"},
+    {"id": "arcade", "nombre": "Arcade (fichines)", "carpeta": "Arcade",
+     "ext": (".zip", ".7z"), "cores": ["fbneo"], "excluir": BIOS_ARCADE, "nombres": "arcade"},
     {"id": "ps1", "nombre": "PlayStation", "carpeta": "PlayStation",
      "ext": (".cue", ".chd", ".pbp", ".m3u", ".iso", ".img", ".bin"),
      "cores": ["pcsx_rearmed"], "discos": True},
@@ -69,7 +78,40 @@ SISTEMAS = [
     {"id": "n64", "nombre": "Nintendo 64 (experimental)", "carpeta": "Nintendo64",
      "ext": (".z64", ".n64", ".v64", ".zip"), "cores": ["mupen64plus_next"],
      "experimental": "N64"},
+    # Juegos viejos de Windows con Wine: cada juego es una carpeta (ver wine.py).
+    {"id": "pc", "nombre": "Juegos de PC", "carpeta": "PC", "ext": (), "cores": [],
+     "pc": True},
 ]
+
+ARCHIVO_NOMBRES_ARCADE = os.path.join(APP_DIR, "datos", "arcade.dat")
+_nombres_arcade = None
+
+
+def nombres_arcade():
+    """Nombre completo de cada juego de arcade ("sfa.zip" -> "Street Fighter Alpha ...").
+
+    Sale de la base de datos de FBNeo que baja instalar.sh. Si no está, devuelve {}.
+    """
+    global _nombres_arcade
+    if _nombres_arcade is not None:
+        return _nombres_arcade
+    _nombres_arcade = {}
+    try:
+        with open(ARCHIVO_NOMBRES_ARCADE, encoding="utf-8", errors="replace") as f:
+            nombre = None
+            for linea in f:
+                linea = linea.strip()
+                if linea.startswith("game ("):
+                    nombre = None
+                elif linea.startswith('name "') and nombre is None:
+                    nombre = linea[6:-1] if linea.endswith('"') else linea[6:]
+                elif linea.startswith("rom ( name ") and nombre:
+                    archivo = linea[11:].split(" ", 1)[0]
+                    clave = os.path.splitext(archivo)[0].lower()
+                    _nombres_arcade.setdefault(clave, nombre)
+    except OSError:
+        pass
+    return _nombres_arcade
 
 _video_3d = None
 

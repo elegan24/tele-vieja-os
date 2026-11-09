@@ -120,7 +120,9 @@ TeleVieja/
 │   ├── GameBoyAdvance/     .gba
 │   ├── NeoGeo/             .zip  (+ neogeo.zip, el BIOS, en la misma carpeta)
 │   ├── PlayStation/        .cue+.bin, .chd, .pbp (ver "Juegos de PlayStation")
-│   └── Nintendo64/         .z64 .n64 .v64 .zip (experimental, ver "Nintendo 64")
+│   ├── Nintendo64/         .z64 .n64 .v64 .zip (experimental, ver "Nintendo 64")
+│   ├── Arcade/             .zip/.7z de FBNeo (fichines: Capcom, Konami, Data East...)
+│   └── PC/                 juegos viejos de Windows, uno por carpeta (ver "Juegos de PC")
 ├── Historietas/            .cbz .cbr .pdf o carpetas con imágenes
 ├── Radio/                  radionovelas y música (.mp3, .ogg, ...)
 ├── Partidas/               (las partidas guardadas de los juegos)
@@ -217,6 +219,51 @@ Por eso **aparece en Juegos solo si la netbook puede**. TeleVieja se fija sola q
   - La palanca derecha hace de botones C (la cámara en Mario 64).
 - Botones: A y B de la N64 = B e Y del joystick, Z = L2, L y R = L y R.
 - Si querés que aparezca igual (o esconderla), poné `N64=si` o `N64=no` en las opciones.
+
+### Arcade (fichines)
+
+Los juegos de las placas arcade: Street Fighter, Marvel vs. Capcom, X-Men, Final Fight,
+Cadillacs and Dinosaurs, Metal Slug, Tortugas Ninja... Usa **FBNeo**, el mismo emulador que la Neo Geo.
+
+- Poné los `.zip` (o `.7z`) **tal cual vienen**, sin descomprimir ni cambiarles el nombre:
+  FBNeo los reconoce por el nombre (`sfa.zip`, `mvsc.zip`...). En el menú aparecen con el
+  nombre completo ("Street Fighter Alpha: Warriors' Dreams").
+- Tienen que ser *romsets* para FBNeo. Los de otras versiones de MAME a veces no andan.
+- Algunas placas necesitan además su BIOS en la misma carpeta (por ejemplo `neogeo.zip` o `pgm.zip`).
+  TeleVieja no las muestra en la lista porque no son juegos.
+- En un Atom andan bien casi todos los de los 80 y 90 (Capcom CPS1/CPS2, Neo Geo, Konami).
+  Los más modernos (CPS3, Cave) pueden ir lentos.
+
+### Juegos de PC (Windows viejos)
+
+Para juegos de Windows de los 90 y principios de los 2000, como **Sonic R de PC**. Se abren
+con **Wine**, un programa que hace andar juegos de Windows en Linux.
+
+- Cada juego va en **su propia carpeta** adentro de `TeleVieja/Juegos/PC`, ya instalado:
+  ```
+  Juegos/PC/
+  └── Sonic R/
+      ├── SONICR.EXE
+      └── (el resto de los archivos del juego)
+  ```
+  Lo más fácil: instalalo en una compu con Windows y copiá la carpeta que quedó
+  (por ejemplo `C:\Program Files\Sonic R`).
+- TeleVieja busca solo el `.exe` del juego (saltea instaladores y desinstaladores). Si hay
+  varios y no sabe cuál, te avisa: creá en la carpeta un archivo **`jugar.txt`** con el nombre
+  del que abre el juego (por ejemplo `SONICR.EXE`).
+- La primera vez tarda un par de minutos en **preparar Wine**. Después abre enseguida.
+- El juego se ve en una ventana del tamaño de la pantalla (así la tele y el conversor no
+  tienen que cambiar de resolución). Si un juego se ve mal, probá `PC_ESCRITORIO_VIRTUAL=no`.
+- **SELECT + START** (mantenidos) cierra el juego, igual que en las consolas. Los controles
+  de adentro del juego se configuran en el propio juego (Sonic R tiene su menú de opciones).
+- Copiá los juegos de PC a la netbook: desde un disco USB (que es de solo lectura) muchos no
+  pueden guardar su configuración.
+- **Ojo con los juegos que piden el CD:** algunos, Sonic R incluido, tocan la música directo
+  del CD. Sin el CD, puede que no tengan música o que no arranquen. Hay arreglos de la
+  comunidad para esos casos.
+- Wine no anda con todos los juegos. Para ver cuáles andan, buscá el juego en
+  **appdb.winehq.org**.
+- Wine ocupa bastante. Para no instalarlo: `sudo SIN_WINE=1 ./instalar.sh`.
 
 ### Videos más livianos
 
@@ -339,6 +386,7 @@ En `~/.config/televieja/opciones.conf` (desde *Opciones → Salir a la terminal*
 | `CONTROL_CELULAR` | `si`/`no`: la página para manejar la tele desde el celu |
 | `PUERTO_CELULAR` | El puerto de esa página (`8080`) |
 | `N64` | `auto` (aparece si la placa de video puede), `si` o `no` |
+| `PC_ESCRITORIO_VIRTUAL` | `si`: los juegos de PC en una ventana del tamaño de la pantalla; `no`: que cambien la resolución |
 
 Para volver al menú desde la terminal: `startx`.
 
@@ -358,6 +406,7 @@ Para volver al menú desde la terminal: `startx`.
 | El joystick del celu dice "No se pudo crear el joystick" | Reiniciá la netbook (carga el módulo `uinput`). Si sigue, volvé a correr `sudo ./instalar.sh` |
 | El celu no abre la página del control | Que esté en el mismo WiFi que la netbook (no en datos móviles) y que la dirección sea la que muestra *Opciones → Control desde el celular* |
 | Un juego no abre | Revisá que la ROM sea de esa consola. Los errores quedan en `~/.cache/televieja/juego.log` |
+| Un juego de PC no abre | Mirá `~/.cache/televieja/pc.log` y buscá el juego en appdb.winehq.org |
 
 ---
 
@@ -376,4 +425,4 @@ Para volver al menú desde la terminal: `startx`.
 
 Emuladores: nestopia (Family), snes9x2010 (Super Nintendo), Genesis Plus GX (Sega),
 Gambatte (Game Boy), gpsp/mGBA (GBA), FBNeo (Neo Geo), PCSX ReARMed (PlayStation)
-y Mupen64Plus-Next (Nintendo 64, experimental).
+y Mupen64Plus-Next (Nintendo 64, experimental). Juegos de PC: Wine (`televieja/wine.py`).

@@ -204,22 +204,25 @@ class App:
 
     # --- programas externos ----------------------------------------------------
     def lanzar(self, orden, control=None, nombre_log="ultimo", combo_salida=False,
-               control_remoto=None):
-        """Corre mpv o RetroArch y espera. Mientras tanto escucha el joystick y el celular.
+               control_remoto=None, cwd=None, env=None, cortar=None):
+        """Corre mpv, RetroArch o Wine y espera. Mientras tanto escucha el joystick y el celular.
 
         control: qué hacer con cada botón. control_remoto: lo mismo pero solo para los
-        botones del celular (en los juegos el joystick ya lo maneja RetroArch).
+        botones del celular (en los juegos el joystick ya lo maneja el juego).
+        cortar: cómo cerrarlo de golpe (por defecto, terminar el proceso).
         """
         self.sonido.apagar()
         inicio = time.monotonic()
         try:
             with open(reproducir.ruta_log(nombre_log), "w") as log:
-                proc = subprocess.Popen(orden, stdout=log, stderr=subprocess.STDOUT)
+                proc = subprocess.Popen(orden, stdout=log, stderr=subprocess.STDOUT,
+                                        cwd=cwd, env=env)
         except OSError as e:
             self.sonido.prender()
             return None, 0.0, str(e)
         combo_desde = None
         pidio_salir = None
+        intentos = 0
         while proc.poll() is None:
             for ev in pygame.event.get():
                 if ev.type == remoto.EVENTO:
@@ -234,11 +237,17 @@ class App:
             if combo_salida and self.mando.esta_apretado("select") and self.mando.esta_apretado("start"):
                 combo_desde = combo_desde or time.monotonic()
                 if time.monotonic() - combo_desde > 2.5:
-                    proc.terminate()
+                    (cortar or proc.terminate)()
+                    combo_desde = time.monotonic() + 5  # no repetir enseguida
             else:
                 combo_desde = None
             if pidio_salir and time.monotonic() - pidio_salir > 4:
-                proc.terminate()
+                intentos += 1
+                if intentos > 1:
+                    proc.kill()  # no hubo caso: a la fuerza
+                else:
+                    (cortar or proc.terminate)()
+                pidio_salir = time.monotonic()
             time.sleep(0.03)
         duracion = time.monotonic() - inicio
         self.mando.soltar_todo()
@@ -270,6 +279,51 @@ class App:
             self.poner(Mensaje("Falta RetroArch", error))
         elif rc != 0 and duracion < 5:
             self.poner(Mensaje("No se pudo abrir el juego", self._ultimas_lineas("juego")))
+
+    def jugar_pc(self, carpeta):
+        """Juego viejo de Windows con Wine (la primera vez prepara Wine)."""
+        from . import wine
+        exe, candidatos = wine.exe_de_juego(carpeta)
+        nombre = os.path.basename(carpeta)
+        if not exe:
+            if candidatos:
+                lista = ", ".join(os.path.basename(c) for c in candidatos[:6])
+                texto = ("Hay varios programas: %s. Creá en la carpeta del juego un archivo "
+                         "jugar.txt con el nombre del que abre el juego." % lista)
+            else:
+                texto = "No encontré ningún .exe en la carpeta de %s." % nombre
+            self.poner(Mensaje("¿Qué programa abro?", texto))
+            return
+        if not wine.prefijo_listo():
+            def listo(app, resultado, error):
+                if error:
+                    app.poner(Mensaje("No se pudo preparar Wine", str(error)))
+                else:
+                    app._abrir_pc(exe)
+            self.poner(Espera("Juegos de PC", "Preparando Wine (solo la primera vez)...",
+                              wine.preparar, listo))
+            return
+        self._abrir_pc(exe)
+
+    def _abrir_pc(self, exe):
+        from . import wine
+        ancho, alto = self.pantalla.get_size()
+        escritorio = config.opcion_si(self.opciones, "PC_ESCRITORIO_VIRTUAL")
+        orden = wine.orden(exe, ancho, alto, escritorio)
+
+        def control_pc(boton):  # "Salir" o "Inicio" en el celu cierran el juego
+            if boton in ("b", "inicio"):
+                wine.cortar()
+                return True
+            return False
+
+        rc, duracion, error = self.lanzar(orden, None, "pc", combo_salida=True,
+                                          control_remoto=control_pc, cwd=os.path.dirname(exe),
+                                          env=wine.entorno(), cortar=wine.cortar)
+        if rc is None:
+            self.poner(Mensaje("Falta Wine", error))
+        elif rc != 0 and duracion < 5:
+            self.poner(Mensaje("No se pudo abrir el juego", self._ultimas_lineas("pc")))
 
     def canal(self):
         lista = reproducir.armar_canal(self.opciones)
