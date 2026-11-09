@@ -60,7 +60,39 @@ SISTEMAS = [
      "ext": (".gba", ".zip"), "cores": ["gpsp", "mgba"]},
     {"id": "neogeo", "nombre": "Neo Geo", "carpeta": "NeoGeo",
      "ext": (".zip",), "cores": ["fbneo"], "excluir": ("neogeo.zip",)},
+    {"id": "ps1", "nombre": "PlayStation", "carpeta": "PlayStation",
+     "ext": (".cue", ".chd", ".pbp", ".m3u", ".iso", ".img", ".bin"),
+     "cores": ["pcsx_rearmed"], "discos": True},
 ]
+
+
+def _referencias(archivo):
+    """Archivos que nombra un .cue (sus pistas .bin) o un .m3u (los discos de un juego)."""
+    carpeta = os.path.dirname(archivo)
+    try:
+        with open(archivo, encoding="utf-8", errors="replace") as f:
+            texto = f.read(65536)
+    except OSError:
+        return []
+    if archivo.lower().endswith(".cue"):
+        nombres = re.findall(r'^\s*FILE\s+"([^"]+)"', texto, re.I | re.M)
+        nombres += re.findall(r'^\s*FILE\s+([^"\s]+)\s', texto, re.I | re.M)
+    else:
+        nombres = [l.strip() for l in texto.splitlines() if l.strip() and not l.startswith("#")]
+    return [os.path.normcase(os.path.normpath(os.path.join(carpeta, n))).lower() for n in nombres]
+
+
+def filtrar_discos(archivos):
+    """Juegos de CD: muestra cada juego una vez.
+
+    Saca los .bin que ya nombra un .cue y los discos sueltos que ya nombra un .m3u
+    (así "Final Fantasy VII" aparece una vez y no tres).
+    """
+    usados = set()
+    for a in archivos:
+        if a.lower().endswith((".cue", ".m3u")):
+            usados.update(_referencias(a))
+    return [a for a in archivos if os.path.normcase(os.path.normpath(a)).lower() not in usados]
 
 
 # Discos USB: los monta solos bin/disco-usb.sh (solo lectura) en esta carpeta.

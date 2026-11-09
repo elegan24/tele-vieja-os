@@ -63,6 +63,20 @@ def preparar_contenido():
         tocar(os.path.join(R, "Juegos", "Family", n + ".nes"))
     tocar(os.path.join(R, "Juegos", "NeoGeo", "mslug.zip"))
     tocar(os.path.join(R, "Juegos", "NeoGeo", "neogeo.zip"))
+    # PlayStation: .cue con sus pistas, juego de 3 discos con .m3u, .chd y un .bin suelto
+    ps1 = os.path.join(R, "Juegos", "PlayStation")
+    tocar(os.path.join(ps1, "Crash Bandicoot (USA).cue"),
+          b'FILE "Crash Bandicoot (USA).bin" BINARY\n  TRACK 01 MODE2/2352\n')
+    tocar(os.path.join(ps1, "Crash Bandicoot (USA).bin"))
+    tocar(os.path.join(ps1, "Tekken 3 (USA).chd"))
+    ff7 = os.path.join(ps1, "Final Fantasy VII")
+    for d in (1, 2, 3):
+        tocar(os.path.join(ff7, "Final Fantasy VII (Disc %d).chd" % d))
+    tocar(os.path.join(ff7, "Final Fantasy VII.m3u"),
+          "\n".join("Final Fantasy VII (Disc %d).chd" % d for d in (1, 2, 3)).encode())
+    tocar(os.path.join(ps1, "Juego Suelto.bin"))
+    tocar(os.path.join(ps1, "Pistas", "Wipeout.cue"), b"FILE Wipeout.bin BINARY\n")
+    tocar(os.path.join(ps1, "Pistas", "Wipeout.bin"))
     tocar(os.path.join(R, "Radio", "Kaliman", "Episodio 001.mp3"))
     # disco USB con carpeta TeleVieja y otro sin (se recorre entero)
     disco = os.path.join(MONTAJES, "1234-ABCD", "TeleVieja")
@@ -172,7 +186,8 @@ def probar_joystick_celular():
     texto = mando.perfil_retroarch(joystick_virtual.NOMBRE, joystick_virtual.VENDOR,
                                    joystick_virtual.PRODUCTO, joystick_virtual.MAPA_MENU)
     assert 'input_a_btn = "1"' in texto and 'input_b_btn = "0"' in texto
-    assert 'input_up_btn = "h0up"' in texto and 'input_exit_emulator_btn = "7"' in texto
+    assert 'input_up_btn = "h0up"' in texto and 'input_exit_emulator_btn = "9"' in texto
+    assert 'input_l2_btn = "6"' in texto and 'input_r2_btn = "7"' in texto
     assert 'input_vendor_id = "%d"' % 0x1209 in texto
     for i, nombre in enumerate(joystick_virtual.BOTONES):
         assert joystick_virtual.MAPA_MENU[nombre] == ["btn", i]
@@ -300,6 +315,8 @@ def main():
     paso("down", "a")                 # Juegos
     foto("04-juegos")
     assert app.actual.items[0].extra == "16", app.actual.items[0].extra  # 15 + 1 del disco
+    ps1 = [it for it in app.actual.items if it.texto == "PlayStation"][0]
+    assert ps1.extra == "5", ps1.extra    # Crash, Tekken, FF7 (una vez), Juego Suelto, Wipeout
     paso("a")                         # Family
     foto("05-family")
     paso("r", "r")                    # saltar de letra

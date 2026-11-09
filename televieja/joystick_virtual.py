@@ -12,14 +12,14 @@ PRODUCTO = 0x7656
 # Orden de los botones = orden de los códigos de Linux, así el número de cada
 # botón es siempre el mismo (lo usan sistema/autoconfig y mando.py).
 #   0 BTN_SOUTH (B)  1 BTN_EAST (A)  2 BTN_NORTH (X)  3 BTN_WEST (Y)
-#   4 BTN_TL (L)     5 BTN_TR (R)    6 BTN_SELECT     7 BTN_START
-BOTONES = ("b", "a", "x", "y", "l", "r", "select", "start")
+#   4 BTN_TL (L)     5 BTN_TR (R)    6 BTN_TL2 (L2)   7 BTN_TR2 (R2)
+#   8 BTN_SELECT     9 BTN_START
+BOTONES = ("b", "a", "x", "y", "l", "r", "l2", "r2", "select", "start")
 MAPA_MENU = {
     "up": ["hat", 0, "up"], "down": ["hat", 0, "down"],
     "left": ["hat", 0, "left"], "right": ["hat", 0, "right"],
-    "b": ["btn", 0], "a": ["btn", 1], "x": ["btn", 2], "y": ["btn", 3],
-    "l": ["btn", 4], "r": ["btn", 5], "select": ["btn", 6], "start": ["btn", 7],
 }
+MAPA_MENU.update({nombre: ["btn", i] for i, nombre in enumerate(BOTONES)})
 
 
 class ErrorJoystick(Exception):
@@ -36,7 +36,8 @@ class JoystickVirtual:
         self.e = e
         self.codigos = {
             "b": e.BTN_SOUTH, "a": e.BTN_EAST, "x": e.BTN_NORTH, "y": e.BTN_WEST,
-            "l": e.BTN_TL, "r": e.BTN_TR, "select": e.BTN_SELECT, "start": e.BTN_START,
+            "l": e.BTN_TL, "r": e.BTN_TR, "l2": e.BTN_TL2, "r2": e.BTN_TR2,
+            "select": e.BTN_SELECT, "start": e.BTN_START,
         }
         hat = AbsInfo(value=0, min=-1, max=1, fuzz=0, flat=0, resolution=0)
         eje = AbsInfo(value=0, min=-32767, max=32767, fuzz=0, flat=0, resolution=0)

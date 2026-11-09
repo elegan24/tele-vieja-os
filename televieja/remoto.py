@@ -18,7 +18,7 @@ import pygame
 EVENTO = pygame.USEREVENT + 7
 BOTONES = {"up", "down", "left", "right", "a", "b", "x", "y", "l", "r",
            "select", "start", "inicio", "vol+", "vol-", "mute"}
-BOTONES_JOYSTICK = {"up", "down", "left", "right", "a", "b", "x", "y", "l", "r",
+BOTONES_JOYSTICK = {"up", "down", "left", "right", "a", "b", "x", "y", "l", "r", "l2", "r2",
                     "select", "start"}
 GUID_WEBSOCKET = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
@@ -297,8 +297,9 @@ PAGINA_JOYSTICK = """<!doctype html>
   #pad { position:fixed; inset:0; display:grid; grid-template-rows:auto 1fr;
     padding:max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
             max(10px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
-  .arriba { display:flex; justify-content:space-between; align-items:center; gap:12px; }
-  .hombro { width:28vw; max-width:220px; height:13vh; min-height:44px; border-radius:14px 14px 22px 22px; }
+  .arriba { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .hombro { width:15vw; max-width:130px; height:13vh; min-height:44px; border-radius:14px 14px 22px 22px; }
+  .hombro[data-b$="2"] { opacity:.8; font-size:14px; }
   #estado { font-size:14px; color:#97a3d6; text-align:center; flex:1; }
   #estado a { color:var(--amarillo); }
   .cuerpo { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; }
@@ -330,9 +331,11 @@ PAGINA_JOYSTICK = """<!doctype html>
 <div id="girar">Girá el celu para jugar<br>📱 ↻</div>
 <div id="pad">
   <div class="arriba">
+    <button class="hombro" data-b="l2">L2</button>
     <button class="hombro" data-b="l">L</button>
     <div id="estado">Conectando…</div>
     <button class="hombro" data-b="r">R</button>
+    <button class="hombro" data-b="r2">R2</button>
   </div>
   <div class="cuerpo">
     <div id="cruz" aria-label="Cruz de direcciones">

@@ -85,7 +85,8 @@ def vid_pid(guid):
     return (vid, pid) if vid else (None, None)
 
 
-NOMBRES_RA = ("up", "down", "left", "right", "a", "b", "x", "y", "l", "r", "select", "start")
+NOMBRES_RA = ("up", "down", "left", "right", "a", "b", "x", "y", "l", "r", "l2", "r2",
+              "select", "start")
 ATAJOS_RA = {"select": "enable_hotkey", "start": "exit_emulator",
              "r": "save_state", "l": "load_state", "x": "menu_toggle"}
 

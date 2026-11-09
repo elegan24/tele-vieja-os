@@ -118,7 +118,8 @@ TeleVieja/
 │   ├── Sega/               .md .gen .bin .sms .gg
 │   ├── GameBoy/            .gb .gbc
 │   ├── GameBoyAdvance/     .gba
-│   └── NeoGeo/             .zip  (+ neogeo.zip, el BIOS, en la misma carpeta)
+│   ├── NeoGeo/             .zip  (+ neogeo.zip, el BIOS, en la misma carpeta)
+│   └── PlayStation/        .cue+.bin, .chd, .pbp (ver "Juegos de PlayStation")
 ├── Historietas/            .cbz .cbr .pdf o carpetas con imágenes
 ├── Radio/                  radionovelas y música (.mp3, .ogg, ...)
 ├── Partidas/               (las partidas guardadas de los juegos)
@@ -161,7 +162,38 @@ Usá solamente las ROMs que venían adentro:
 | NeoRAGEx | `Juegos/NeoGeo` | ✅ bien. Ojo: las ROMs de NeoRAGEx son versiones muy viejas y algunas no las reconoce el emulador moderno |
 | Visual Boy Advance | `Juegos/GameBoyAdvance` | 🟡 la mayoría sí |
 | MARIO DS | — | ❌ Nintendo DS es demasiado pesada para un Atom |
+| Juegos de PS1 | `Juegos/PlayStation` | 🟡 muchos sí (ver "Juegos de PlayStation") |
 | OPL | — | ❌ no es un emulador: es un programa para cargar juegos en una PlayStation 2 de verdad |
+
+### Juegos de PlayStation
+
+Usa **PCSX ReARMed**, el emulador de PS1 más liviano que hay (el mismo que se usa en
+consolitas portátiles). Lo esperable en un Atom: los juegos 2D y muchos 3D andan bien;
+los 3D más pesados pueden ir un poco a los saltos (el emulador saltea cuadros para que el
+juego no se ponga lento). No está probado en la netbook todavía: probalo con tus juegos.
+
+- **Formatos:** `.cue` + `.bin` (poné los dos juntos en la carpeta), `.chd`, `.pbp` o `.iso`.
+  En la lista aparece solo el `.cue`, no sus `.bin`.
+  Si vienen en `.rar` o `.zip`, descomprimilos primero.
+- **Juegos de varios discos:** poné los discos en una carpeta con un archivo `.m3u` (un archivo
+  de texto con el nombre de cada disco, uno por renglón). En la lista aparece una sola vez,
+  y cuando el juego pide el disco siguiente: SELECT + X (menú de RetroArch) → *Disc Control*.
+  ```
+  Final Fantasy VII/
+  ├── Final Fantasy VII.m3u      ← adentro: los 3 nombres de abajo
+  ├── Final Fantasy VII (Disc 1).chd
+  ├── Final Fantasy VII (Disc 2).chd
+  └── Final Fantasy VII (Disc 3).chd
+  ```
+- **Ocupan mucho** (300 a 700 MB cada uno). Pasalos a `.chd` y ocupan bastante menos:
+  `./herramientas/comprimir-ps1.sh carpeta_juegos` (en una compu con Linux o WSL;
+  necesita `sudo apt install mame-tools`). En Windows hay programas como *namDHC* que hacen lo mismo.
+- **BIOS:** el emulador trae una de reemplazo y casi todos los juegos andan con ella.
+  Si tenés el archivo de BIOS de tu consola (por ejemplo `scph1001.bin`), ponelo en
+  `TeleVieja/BIOS` y mejora la compatibilidad.
+- **L2 y R2:** muchos juegos de PS1 los usan. Al configurar el joystick te los pide
+  (si tu joystick no los tiene, esperá y los saltea). El joystick del celu ya los trae.
+- La tarjeta de memoria se guarda sola en `TeleVieja/Partidas`.
 
 ### Videos más livianos
 
@@ -220,7 +252,8 @@ un control con cruz, OK, volver, inicio, pausa, volumen y botones para los juego
 (guardar, cargar y salir). Guardala en favoritos o agregala a la pantalla de inicio.
 
 **El celular como joystick.** En esa misma página tocá **"🎮 Usar el celu como joystick"**,
-girá el celu y aparece un joystick tipo Super Nintendo: cruz, A, B, X, Y, L, R, SELECT y START.
+girá el celu y aparece un joystick tipo Super Nintendo: cruz, A, B, X, Y, L, R, SELECT y START
+(y L2/R2 arriba, para los juegos de PS1).
 Para la netbook es un joystick USB más, así que sirve para **jugar** y también para el menú.
 
 - **Dos jugadores:** cada celu que abre el joystick es un joystick distinto. Podés jugar
@@ -317,4 +350,4 @@ Para volver al menú desde la terminal: `startx`.
 - `pruebas/prueba_menu.py`: recorre el menú sin pantalla (también con el celu) y guarda capturas.
 
 Emuladores: nestopia (Family), snes9x2010 (Super Nintendo), Genesis Plus GX (Sega),
-Gambatte (Game Boy), gpsp/mGBA (GBA) y FBNeo (Neo Geo).
+Gambatte (Game Boy), gpsp/mGBA (GBA), FBNeo (Neo Geo) y PCSX ReARMed (PlayStation).

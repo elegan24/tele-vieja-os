@@ -71,9 +71,9 @@ chown -R root:root "$APP"
 chmod 755 "$APP/bin/"*.sh
 find "$APP" -name '__pycache__' -prune -exec rm -rf {} +
 
-verde "==> 3/7 Bajando emuladores que no vienen en Debian (Neo Geo, Super Nintendo liviano, GBA)..."
+verde "==> 3/7 Bajando emuladores que no vienen en Debian (Neo Geo, PlayStation, Super Nintendo liviano, GBA)..."
 if [ -n "$ARQ_LIBRETRO" ]; then
-    for core in fbneo snes9x2010 gpsp; do
+    for core in fbneo snes9x2010 gpsp pcsx_rearmed; do
         if [ -f "$APP/cores/${core}_libretro.so" ]; then
             echo "   $core ya estaba."
             continue
@@ -95,7 +95,7 @@ R="$CASA/TeleVieja"
 sudo -u "$USUARIO" mkdir -p \
     "$R/Videos" "$R/Canal/Programas" "$R/Canal/Tandas" \
     "$R/Juegos/Family" "$R/Juegos/SuperNintendo" "$R/Juegos/Sega" \
-    "$R/Juegos/GameBoy" "$R/Juegos/GameBoyAdvance" "$R/Juegos/NeoGeo" \
+    "$R/Juegos/GameBoy" "$R/Juegos/GameBoyAdvance" "$R/Juegos/NeoGeo" "$R/Juegos/PlayStation" \
     "$R/Historietas" "$R/Radio" "$R/Partidas" "$R/BIOS" \
     "$CASA/.config/televieja" "$CASA/.config/mpv"
 
@@ -125,8 +125,12 @@ PUERTO_CELULAR=8080
 EOF
     chown "$USUARIO:$USUARIO" "$CASA/.config/televieja/opciones.conf"
 fi
-sed "s#@RAIZ@#$R#g" "$APP/sistema/retroarch.cfg" > "$CASA/.config/televieja/retroarch.cfg"
+sed -e "s#@RAIZ@#$R#g" -e "s#@CONFIG@#$CASA/.config/televieja#g" \
+    "$APP/sistema/retroarch.cfg" > "$CASA/.config/televieja/retroarch.cfg"
 chown "$USUARIO:$USUARIO" "$CASA/.config/televieja/retroarch.cfg"
+# Opciones de los emuladores (PS1 afinado para el Atom). No pisa cambios tuyos.
+instalar_archivo "$APP/sistema/retroarch-core-options.cfg" \
+    "$CASA/.config/televieja/retroarch-core-options.cfg" no-pisar
 instalar_archivo "$APP/sistema/mpv/mpv.conf" "$CASA/.config/mpv/mpv.conf"
 instalar_archivo "$APP/sistema/mpv/input.conf" "$CASA/.config/mpv/input.conf"
 install -o "$USUARIO" -g "$USUARIO" -m 755 "$APP/sistema/xinitrc" "$CASA/.xinitrc"

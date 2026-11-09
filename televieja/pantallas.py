@@ -450,6 +450,8 @@ class ListaSistemas(Lista):
         for s in config.SISTEMAS:
             roms = [r for r in config.listar_en_todas(("Juegos", s["carpeta"]), s["ext"])
                     if os.path.basename(r).lower() not in s.get("excluir", ())]
+            if s.get("discos"):
+                roms = config.filtrar_discos(roms)
             core = config.buscar_core(s["cores"])
             if not core:
                 extra = "falta emulador"
@@ -744,6 +746,8 @@ PASOS_JOYSTICK = [
     ("y", "el botón Y (izquierda)", False),
     ("l", "el gatillo L", False),
     ("r", "el gatillo R", False),
+    ("l2", "el gatillo L2 (para PS1)", False),
+    ("r2", "el gatillo R2 (para PS1)", False),
     ("select", "SELECT", True),
     ("start", "START", True),
 ]
