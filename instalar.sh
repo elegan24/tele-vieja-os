@@ -45,7 +45,7 @@ apt-get update
 PAQUETES=(
     xserver-xorg-core xserver-xorg-input-libinput xinit x11-xserver-utils
     matchbox-window-manager libgl1-mesa-dri
-    python3 python3-pygame python3-qrcode fonts-dejavu-core
+    python3 python3-pygame python3-qrcode python3-evdev fonts-dejavu-core
     mpv ffmpeg alsa-utils
     retroarch libretro-core-info
     libretro-nestopia libretro-snes9x libretro-genesisplusgx
@@ -170,12 +170,20 @@ amixer -q sset Master 90% unmute 2>/dev/null || true
 amixer -q sset PCM 90% unmute 2>/dev/null || true
 alsactl store 2>/dev/null || true
 
+# Celular como joystick: necesita el módulo uinput y permiso para el grupo "input".
+echo uinput > /etc/modules-load.d/televieja.conf
+cat > /etc/udev/rules.d/99-televieja-uinput.rules <<'EOF'
+KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"
+EOF
+modprobe uinput 2>/dev/null || true
+
 # Discos USB: se montan solos (solo lectura) y aparecen en el menú.
 install -m 644 "$APP/sistema/99-televieja-usb.rules" /etc/udev/rules.d/
 install -m 644 "$APP/sistema/televieja-disco@.service" /etc/systemd/system/
 systemctl daemon-reload
 udevadm control --reload-rules 2>/dev/null || true
 udevadm trigger --subsystem-match=block --action=add 2>/dev/null || true
+udevadm trigger --subsystem-match=misc --sysname-match=uinput --action=add 2>/dev/null || true
 
 verde "==> 7/7 Arranque silencioso..."
 if [ -f /etc/default/grub ]; then

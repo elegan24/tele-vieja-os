@@ -4,6 +4,7 @@ Nombres: up, down, left, right, a, b, x, y, l, r, select, start.
 """
 import json
 import os
+import re
 import time
 
 import pygame
@@ -57,7 +58,7 @@ def guardar_calibracion(guid, nombre, mapa):
     os.makedirs(config.CONFIG_DIR, exist_ok=True)
     with open(config.ARCHIVO_JOYSTICK, "w", encoding="utf-8") as f:
         json.dump(datos, f, indent=2)
-    escribir_config_retroarch(mapa)
+    escribir_config_retroarch()
 
 
 def _valor_ra(enlace):
@@ -72,30 +73,69 @@ def _valor_ra(enlace):
     return None, None
 
 
-def escribir_config_retroarch(mapa):
-    """Genera las líneas de joystick para RetroArch (jugador 1 y 2 iguales)."""
-    nombres_ra = {"up": "up", "down": "down", "left": "left", "right": "right",
-                  "a": "a", "b": "b", "x": "x", "y": "y", "l": "l", "r": "r",
-                  "select": "select", "start": "start"}
-    lineas = ['input_joypad_driver = "udev"', 'input_autodetect_enable = "false"']
-    for jugador in (1, 2):
-        for nombre, ra in nombres_ra.items():
-            enlace = mapa.get(nombre)
-            if not enlace:
-                continue
+def vid_pid(guid):
+    """Saca el fabricante y modelo USB del GUID de SDL (para que RetroArch reconozca el joystick)."""
+    if not isinstance(guid, str) or len(guid) != 32:
+        return None, None
+    try:
+        vid = int(guid[10:12] + guid[8:10], 16)
+        pid = int(guid[18:20] + guid[16:18], 16)
+    except ValueError:
+        return None, None
+    return (vid, pid) if vid else (None, None)
+
+
+NOMBRES_RA = ("up", "down", "left", "right", "a", "b", "x", "y", "l", "r", "select", "start")
+ATAJOS_RA = {"select": "enable_hotkey", "start": "exit_emulator",
+             "r": "save_state", "l": "load_state", "x": "menu_toggle"}
+
+
+def perfil_retroarch(nombre, vid, pid, mapa):
+    """Un perfil de "autoconfig": RetroArch lo usa solo para ESE joystick.
+
+    Así cada joystick (el de verdad, el del celu, otro de un amigo) tiene sus
+    propios números de botón y se pueden usar varios a la vez.
+    """
+    lineas = ['input_driver = "udev"', 'input_device = "%s"' % nombre.replace('"', "'")]
+    if vid:
+        lineas += ['input_vendor_id = "%d"' % vid, 'input_product_id = "%d"' % pid]
+    for n in NOMBRES_RA:
+        enlace = mapa.get(n)
+        if enlace:
             tipo, valor = _valor_ra(enlace)
-            lineas.append('input_player%d_%s_%s = "%s"' % (jugador, ra, tipo, valor))
-    atajos = {"select": "enable_hotkey", "start": "exit_emulator",
-              "r": "save_state", "l": "load_state", "x": "menu_toggle"}
-    for nombre, atajo in atajos.items():
-        enlace = mapa.get(nombre)
+            lineas.append('input_%s_%s = "%s"' % (n, tipo, valor))
+    for n, atajo in ATAJOS_RA.items():
+        enlace = mapa.get(n)
         if enlace:
             tipo, valor = _valor_ra(enlace)
             lineas.append('input_%s_%s = "%s"' % (atajo, tipo, valor))
-    os.makedirs(config.CONFIG_DIR, exist_ok=True)
+    return "\n".join(lineas) + "\n"
+
+
+def escribir_config_retroarch():
+    """Escribe un perfil por joystick configurado (más el del celu) y la config base."""
+    from .joystick_virtual import MAPA_MENU, NOMBRE, PRODUCTO, VENDOR
+    carpeta = os.path.join(config.AUTOCONFIG_DIR, "udev")
+    os.makedirs(carpeta, exist_ok=True)
+    for viejo in os.listdir(carpeta):
+        if viejo.startswith("televieja-"):
+            os.remove(os.path.join(carpeta, viejo))
+    perfiles = {"televieja-celular.cfg": perfil_retroarch(NOMBRE, VENDOR, PRODUCTO, MAPA_MENU)}
+    for guid, datos in cargar_calibraciones().items():
+        if guid.startswith("_") or not isinstance(datos, dict) or "mapa" not in datos:
+            continue
+        vid, pid = vid_pid(guid)
+        archivo = "televieja-%s.cfg" % (re.sub(r"[^A-Za-z0-9]", "", guid)[:32] or "joystick")
+        perfiles[archivo] = perfil_retroarch(datos.get("nombre", "Joystick"), vid, pid, datos["mapa"])
+    for archivo, texto in perfiles.items():
+        with open(os.path.join(carpeta, archivo), "w", encoding="utf-8") as f:
+            f.write(texto)
     with open(config.ARCHIVO_RA_JOYSTICK, "w", encoding="utf-8") as f:
-        f.write("# Generado por TeleVieja OS (Opciones > Configurar joystick)\n")
-        f.write("\n".join(lineas) + "\n")
+        f.write("# Generado por TeleVieja OS: los botones de cada joystick están en %s\n"
+                % config.AUTOCONFIG_DIR)
+        f.write('input_joypad_driver = "udev"\n')
+        f.write('input_autodetect_enable = "true"\n')
+        f.write('joypad_autoconfig_dir = "%s"\n' % config.AUTOCONFIG_DIR)
 
 
 class Mando:
@@ -126,8 +166,16 @@ class Mando:
     def hay_joystick(self):
         return bool(self.joysticks)
 
+    @staticmethod
+    def es_celular(j):
+        from .joystick_virtual import NOMBRE
+        try:
+            return j.get_name() == NOMBRE
+        except pygame.error:
+            return False
+
     def esta_calibrado(self, j):
-        return self._guid(j) in self.calibraciones
+        return self.es_celular(j) or self._guid(j) in self.calibraciones
 
     @staticmethod
     def _guid(j):
@@ -137,6 +185,9 @@ class Mando:
             return j.get_name()
 
     def mapa(self, j):
+        if self.es_celular(j):
+            from .joystick_virtual import MAPA_MENU
+            return MAPA_MENU
         datos = self.calibraciones.get(self._guid(j))
         if datos:
             return datos["mapa"]

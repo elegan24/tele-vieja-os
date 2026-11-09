@@ -11,6 +11,7 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 import pygame  # noqa: E402
 
 from . import config, remoto, reproducir, ui  # noqa: E402
+from . import mando as mando_mod  # noqa: E402
 from .mando import Mando  # noqa: E402
 from .pantallas import (Calibrar, Confirmar, ControlCelular, Espera, Explorador, Item, Lista,  # noqa: E402
                         ListaSistemas, Mensaje)
@@ -70,6 +71,10 @@ class App:
         self.iniciar_pantalla()
         self.fuentes = ui.Fuentes()
         self.mando = Mando()
+        try:  # perfiles de joystick para RetroArch (también actualiza instalaciones viejas)
+            mando_mod.escribir_config_retroarch()
+        except OSError:
+            pass
         self.sonido = Sonido(config.opcion_si(self.opciones, "SONIDOS_MENU"))
         self.pila = []
         self.sucio = True
@@ -375,8 +380,8 @@ class App:
             j = pygame.joystick.Joystick(indice)
         except pygame.error:
             return
-        if not self.mando.esta_calibrado(j) and not isinstance(self.actual, Calibrar) \
-                and not self.mando.calibraciones:
+        # Cada modelo de joystick nuevo se configura una vez (RetroArch necesita sus botones).
+        if not self.mando.esta_calibrado(j) and not isinstance(self.actual, Calibrar):
             self.poner(Calibrar("Encontré un joystick nuevo: vamos a configurarlo."))
 
 

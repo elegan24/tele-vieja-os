@@ -189,8 +189,8 @@ En Windows se puede hacer lo mismo con **HandBrake**: preset *"Fast 480p30"* y e
 | L / R | RePág / AvPág | Saltar a la letra anterior / siguiente (para listas con miles de juegos) |
 | — | una letra | Ir a los juegos que empiezan con esa letra |
 
-La primera vez que enchufás un joystick, TeleVieja te pide que **apretes cada botón**
-para aprenderlo. Se puede repetir en *Opciones → Configurar joystick*.
+Cada vez que enchufás un **modelo nuevo** de joystick, TeleVieja te pide que **apretes cada botón**
+para aprenderlo (una sola vez por modelo; el celu no hace falta configurarlo). Se puede repetir en *Opciones → Configurar joystick*.
 
 ### Control remoto
 
@@ -218,6 +218,19 @@ celu (configurá el WiFi al instalar Debian). En el menú andá a
 `http://192.168.0.23:8080`) y un **código QR**. Escanealo con la cámara del celu y tenés
 un control con cruz, OK, volver, inicio, pausa, volumen y botones para los juegos
 (guardar, cargar y salir). Guardala en favoritos o agregala a la pantalla de inicio.
+
+**El celular como joystick.** En esa misma página tocá **"🎮 Usar el celu como joystick"**,
+girá el celu y aparece un joystick tipo Super Nintendo: cruz, A, B, X, Y, L, R, SELECT y START.
+Para la netbook es un joystick USB más, así que sirve para **jugar** y también para el menú.
+
+- **Dos jugadores:** cada celu que abre el joystick es un joystick distinto. Podés jugar
+  con el joystick de verdad y un celu, o con dos celus.
+- En la cruz podés deslizar el dedo y hacer diagonales, y se pueden apretar varios botones a la vez.
+- SELECT + START sale del juego, igual que con el joystick de verdad.
+- Si el celu se bloquea o se corta el WiFi, se sueltan todos los botones solos
+  (no queda Mario corriendo para siempre).
+- Hay un poquito de demora (lo que tarda el WiFi): para los juegos de plataformas más
+  exigentes conviene el joystick USB.
 
 > Cualquiera conectado a tu WiFi puede abrir esa página. Si no la querés, poné
 > `CONTROL_CELULAR=no` en las opciones.
@@ -284,6 +297,7 @@ Para volver al menú desde la terminal: `startx`.
 | No hay sonido | Revisá el cable de auriculares y el volumen de la tele. Desde la terminal: `alsamixer` |
 | El joystick no responde en los juegos | *Opciones → Configurar joystick* |
 | Un video anda trabado | Pasalo a 480p (ver arriba) |
+| El joystick del celu dice "No se pudo crear el joystick" | Reiniciá la netbook (carga el módulo `uinput`). Si sigue, volvé a correr `sudo ./instalar.sh` |
 | El celu no abre la página del control | Que esté en el mismo WiFi que la netbook (no en datos móviles) y que la dirección sea la que muestra *Opciones → Control desde el celular* |
 | Un juego no abre | Revisá que la ROM sea de esa consola. Los errores quedan en `~/.cache/televieja/juego.log` |
 
@@ -297,7 +311,9 @@ Para volver al menú desde la terminal: `startx`.
 - `bin/pantalla.sh`: elige la salida (tele o netbook). `bin/importar-usb.sh`: copia desde el pendrive.
 - `bin/disco-usb.sh` + `sistema/99-televieja-usb.rules` + `sistema/televieja-disco@.service`:
   montan solos los discos USB (solo lectura) en `/media/televieja/`.
-- `televieja/remoto.py`: la página del control para el celu (un servidor web chiquito, puerto 8080).
+- `televieja/remoto.py`: la página del control para el celu (un servidor web chiquito, puerto 8080)
+  y el WebSocket del joystick. `televieja/joystick_virtual.py` crea el joystick virtual con
+  `/dev/uinput`, y `mando.py` le arma a RetroArch un perfil de botones por cada joystick.
 - `pruebas/prueba_menu.py`: recorre el menú sin pantalla (también con el celu) y guarda capturas.
 
 Emuladores: nestopia (Family), snes9x2010 (Super Nintendo), Genesis Plus GX (Sega),

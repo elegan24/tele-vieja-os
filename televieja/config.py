@@ -17,6 +17,7 @@ ARCHIVO_JOYSTICK = os.path.join(CONFIG_DIR, "joystick.json")
 ARCHIVO_RA_JOYSTICK = os.path.join(CONFIG_DIR, "retroarch-joystick.cfg")
 ARCHIVO_RA = os.path.join(CONFIG_DIR, "retroarch.cfg")
 ARCHIVO_HISTORIETAS = os.path.join(CONFIG_DIR, "historietas.json")
+AUTOCONFIG_DIR = os.path.join(CONFIG_DIR, "autoconfig")
 
 CARPETA_VIDEOS = os.path.join(RAIZ, "Videos")
 CARPETA_PROGRAMAS = os.path.join(RAIZ, "Canal", "Programas")

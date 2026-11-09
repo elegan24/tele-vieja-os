@@ -99,6 +99,104 @@ def celular(app, boton):
     app.vuelta(0.05)
 
 
+class PadFalso:
+    """Joystick virtual de mentira (en la prueba no hay /dev/uinput)."""
+    creados = []
+
+    def __init__(self):
+        self.eventos = []
+        self.cerrado = False
+        PadFalso.creados.append(self)
+
+    def boton(self, nombre, apretado):
+        self.eventos.append((nombre, apretado))
+
+    def cerrar(self):
+        self.cerrado = True
+
+
+def websocket(mensajes, puerto=18080):
+    """Cliente WebSocket mínimo: se conecta a /ws, manda mensajes y devuelve lo que contestó."""
+    import base64
+    import socket
+    import struct
+    s = socket.create_connection(("127.0.0.1", puerto), timeout=5)
+    clave = base64.b64encode(os.urandom(16)).decode()
+    s.sendall(("GET /ws HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+               "Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n" % clave).encode())
+    respuesta = b""
+    while b"\r\n\r\n" not in respuesta:
+        respuesta += s.recv(1)
+    assert b" 101 " in respuesta, respuesta
+
+    def leer_mensaje():
+        b1, b2 = s.recv(1)[0], s.recv(1)[0]
+        largo = b2 & 0x7F
+        if largo == 126:
+            largo = struct.unpack(">H", s.recv(2))[0]
+        datos = b""
+        while len(datos) < largo:
+            datos += s.recv(largo - len(datos))
+        return b1 & 0x0F, datos.decode()
+
+    recibidos = [leer_mensaje()[1]]
+    if recibidos[0] == "ok":
+        for m in mensajes:
+            datos = m.encode()
+            mascara = os.urandom(4)
+            enmascarado = bytes(c ^ mascara[i % 4] for i, c in enumerate(datos))
+            s.sendall(bytes([0x81, 0x80 | len(datos)]) + mascara + enmascarado)
+        s.sendall(bytes([0x88, 0x80]) + os.urandom(4))  # cerrar
+        time.sleep(0.2)
+    s.close()
+    return recibidos
+
+
+def probar_joystick_celular():
+    from televieja import joystick_virtual, mando, remoto
+    pagina = __import__("urllib.request").request.urlopen("http://127.0.0.1:18080/joystick").read().decode()
+    assert "SELECT" in pagina and "/ws" in pagina
+    # 1) sin /dev/uinput (como acá): el celu recibe un mensaje claro
+    remoto.crear_joystick = remoto._crear_joystick
+    respuesta = websocket([])
+    assert respuesta[0].startswith("error"), respuesta
+    print("sin uinput, el celu muestra:", respuesta[0])
+    # 2) con un joystick: los botones llegan apretados y soltados, y al cortar se suelta todo
+    remoto.crear_joystick = PadFalso
+    assert websocket(["1 a", "1 right", "ping", "0 right", "0 a", "1 rm -rf", "1 start"]) == ["ok"]
+    pad = PadFalso.creados[-1]
+    assert pad.eventos == [("a", True), ("right", True), ("right", False), ("a", False),
+                           ("start", True)], pad.eventos
+    assert pad.cerrado
+    # 3) el perfil de RetroArch del celu coincide con el orden de botones del joystick virtual
+    texto = mando.perfil_retroarch(joystick_virtual.NOMBRE, joystick_virtual.VENDOR,
+                                   joystick_virtual.PRODUCTO, joystick_virtual.MAPA_MENU)
+    assert 'input_a_btn = "1"' in texto and 'input_b_btn = "0"' in texto
+    assert 'input_up_btn = "h0up"' in texto and 'input_exit_emulator_btn = "7"' in texto
+    assert 'input_vendor_id = "%d"' % 0x1209 in texto
+    for i, nombre in enumerate(joystick_virtual.BOTONES):
+        assert joystick_virtual.MAPA_MENU[nombre] == ["btn", i]
+
+
+def probar_perfiles_retroarch():
+    from televieja import mando
+    # GUID de SDL: bus, crc, fabricante, 0, modelo, 0, versión, datos (2 bytes c/u)
+    guid = "0300" + "0000" + "6d04" + "0000" + "16c2" + "0000" + "1101" + "0000"
+    assert mando.vid_pid(guid) == (0x046D, 0xC216), mando.vid_pid(guid)
+    mando.guardar_calibracion(guid, "Logitech Dual Action",
+                              {"up": ["hat", 0, "up"], "a": ["btn", 2], "b": ["btn", 1],
+                               "left": ["axis", 0, -1], "select": ["btn", 8], "start": ["btn", 9]})
+    carpeta = os.path.join(config.AUTOCONFIG_DIR, "udev")
+    archivos = sorted(os.listdir(carpeta))
+    assert "televieja-celular.cfg" in archivos and len(archivos) == 2, archivos
+    perfil = open(os.path.join(carpeta, [a for a in archivos if "celular" not in a][0])).read()
+    assert 'input_vendor_id = "1133"' in perfil and 'input_left_axis = "-0"' in perfil, perfil
+    assert 'input_enable_hotkey_btn = "8"' in perfil
+    base = open(config.ARCHIVO_RA_JOYSTICK).read()
+    assert 'input_autodetect_enable = "true"' in base and config.AUTOCONFIG_DIR in base
+    assert "input_player1" not in base  # nada global: cada joystick usa su perfil
+
+
 def probar_controles(app, paso, foto):
     import urllib.request
     from televieja import remoto
@@ -139,11 +237,14 @@ def probar_controles(app, paso, foto):
     pantalla = app.actual
     if pantalla.ip is None:
         pantalla.ip = "192.168.0.23"  # la prueba corre sin red de casa
+    app.aviso = ""
     foto("15-control-celular")
     assert pantalla.url and pantalla.url.endswith(":18080"), pantalla.url
     assert pantalla.qr, "falta el QR (pip install qrcode)"
     paso("b")
     assert remoto.EVENTO > pygame.USEREVENT
+    probar_joystick_celular()
+    probar_perfiles_retroarch()
 
 
 def main():

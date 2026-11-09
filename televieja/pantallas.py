@@ -933,7 +933,7 @@ class ControlCelular(Pantalla):
         ui.escribir(sup, f.item, self.url, ui.AMARILLO, (ANCHO // 2, y + 52), "midtop")
         if self.qr:
             n = len(self.qr)
-            modulo = max(2, 196 // n)
+            modulo = max(2, 176 // n)
             lado = n * modulo
             x0 = (ANCHO - lado) // 2
             y0 = y + 96
@@ -943,3 +943,5 @@ class ControlCelular(Pantalla):
                     if negro:
                         pygame.draw.rect(sup, (0, 0, 0),
                                          (x0 + col * modulo, y0 + fila * modulo, modulo, modulo))
+            ui.escribir(sup, f.chica, "Ahí también lo podés usar como joystick", ui.GRIS,
+                        (ANCHO // 2, y0 + lado + 14), "midtop")

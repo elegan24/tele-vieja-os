@@ -2,8 +2,14 @@
 
 Entrás desde el celu (conectado al mismo WiFi) a http://IP-DE-LA-NETBOOK:8080
 y cada botón le llega al menú como si fuera el joystick.
+
+En /joystick el celu se convierte en un joystick de verdad (para jugar): los
+botones viajan por un WebSocket y joystick_virtual.py los pasa a Linux.
 """
+import base64
+import hashlib
 import socket
+import struct
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -12,6 +18,18 @@ import pygame
 EVENTO = pygame.USEREVENT + 7
 BOTONES = {"up", "down", "left", "right", "a", "b", "x", "y", "l", "r",
            "select", "start", "inicio", "vol+", "vol-", "mute"}
+BOTONES_JOYSTICK = {"up", "down", "left", "right", "a", "b", "x", "y", "l", "r",
+                    "select", "start"}
+GUID_WEBSOCKET = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+
+def _crear_joystick():
+    from .joystick_virtual import JoystickVirtual
+    return JoystickVirtual()
+
+
+# Se puede reemplazar en las pruebas (acá no siempre hay /dev/uinput).
+crear_joystick = _crear_joystick
 
 
 def direccion_ip():
@@ -32,15 +50,97 @@ class _Manejador(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path in ("/", "/index.html"):
-            cuerpo = PAGINA.encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(cuerpo)))
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            self.wfile.write(cuerpo)
+            self._pagina(PAGINA)
+        elif self.path == "/joystick":
+            self._pagina(PAGINA_JOYSTICK)
+        elif self.path == "/ws":
+            self._websocket()
         else:
             self.send_error(404)
+
+    def _pagina(self, html):
+        cuerpo = html.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(cuerpo)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(cuerpo)
+
+    # --- WebSocket mínimo (sin librerías) para el joystick ---------------------
+    def _websocket(self):
+        clave = self.headers.get("Sec-WebSocket-Key")
+        if not clave or "websocket" not in self.headers.get("Upgrade", "").lower():
+            self.send_error(400)
+            return
+        acepta = base64.b64encode(hashlib.sha1((clave + GUID_WEBSOCKET).encode()).digest()).decode()
+        self.send_response(101, "Switching Protocols")
+        self.send_header("Upgrade", "websocket")
+        self.send_header("Connection", "Upgrade")
+        self.send_header("Sec-WebSocket-Accept", acepta)
+        self.end_headers()
+        self.close_connection = True
+        self.connection.settimeout(30)  # la página manda "ping" cada 10 s
+        try:
+            pad = crear_joystick()
+        except Exception as err:  # noqa: BLE001 - se le muestra al usuario en el celu
+            self._ws_enviar("error " + str(err))
+            self._ws_enviar(b"", 0x8)
+            return
+        self._ws_enviar("ok")
+        try:
+            while True:
+                op, datos = self._ws_leer()
+                if op == 0x8:          # el celu cerró
+                    break
+                if op == 0x9:          # ping del navegador
+                    self._ws_enviar(datos, 0xA)
+                    continue
+                if op != 0x1:
+                    continue
+                for linea in datos.decode("utf-8", "replace").splitlines():
+                    partes = linea.split()
+                    if len(partes) == 2 and partes[0] in ("0", "1") and partes[1] in BOTONES_JOYSTICK:
+                        pad.boton(partes[1], partes[0] == "1")
+        except (OSError, ValueError):
+            pass  # se cortó el WiFi, se apagó la pantalla del celu, etc.
+        finally:
+            pad.cerrar()  # suelta todos los botones
+
+    def _leer(self, n):
+        datos = self.rfile.read(n)
+        if len(datos) < n:
+            raise OSError("conexión cerrada")
+        return datos
+
+    def _ws_leer(self):
+        b1, b2 = self._leer(2)
+        op = b1 & 0x0F
+        largo = b2 & 0x7F
+        if largo == 126:
+            largo = struct.unpack(">H", self._leer(2))[0]
+        elif largo == 127:
+            largo = struct.unpack(">Q", self._leer(8))[0]
+        if largo > 4096:
+            raise ValueError("mensaje demasiado largo")
+        mascara = self._leer(4) if b2 & 0x80 else b"\0\0\0\0"
+        datos = bytearray(self._leer(largo))
+        for i in range(largo):
+            datos[i] ^= mascara[i % 4]
+        return op, bytes(datos)
+
+    def _ws_enviar(self, datos, op=0x1):
+        if isinstance(datos, str):
+            datos = datos.encode("utf-8")
+        if len(datos) < 126:
+            cabecera = bytes([0x80 | op, len(datos)])
+        else:
+            cabecera = bytes([0x80 | op, 126]) + struct.pack(">H", len(datos))
+        try:
+            self.wfile.write(cabecera + datos)
+            self.wfile.flush()
+        except OSError:
+            pass
 
     def do_POST(self):
         boton = self.path[3:] if self.path.startswith("/b/") else ""
@@ -96,6 +196,9 @@ PAGINA = """<!doctype html>
   .fila { display:grid; grid-template-columns:repeat(var(--n,3),1fr); gap:10px; margin-top:10px; }
   .vacio { visibility:hidden; }
   .grande { font-size:28px; }
+  a.joystick { display:block; text-align:center; text-decoration:none; color:#0c1240;
+    background:var(--amarillo); border-radius:14px; padding:16px; font-weight:800; font-size:18px;
+    margin-bottom:18px; }
   #estado { margin-top:20px; font-size:13px; color:#97a3d6; text-align:center; min-height:1em; }
 </style>
 </head>
@@ -104,6 +207,8 @@ PAGINA = """<!doctype html>
   <h1><span class="franjas"><i style="background:#e6463c"></i><i style="background:#f58c28"></i>
     <i style="background:#ffd43c"></i><i style="background:#5ac86e"></i><i style="background:#5aaaf0"></i></span>
     TeleVieja</h1>
+
+  <a class="joystick" href="/joystick">🎮 Usar el celu como joystick</a>
 
   <div class="cruz">
     <span class="vacio"></span><button data-b="up" data-repetir aria-label="Arriba">▲</button><span class="vacio"></span>
@@ -168,6 +273,180 @@ PAGINA = """<!doctype html>
     ["pointerup", "pointerleave", "pointercancel"].forEach((t) => btn.addEventListener(t, soltar));
     btn.addEventListener("contextmenu", (e) => e.preventDefault());
   });
+</script>
+</body>
+</html>
+"""
+
+
+PAGINA_JOYSTICK = """<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0c1240">
+<meta name="mobile-web-app-capable" content="yes">
+<title>TeleVieja · Joystick</title>
+<style>
+  :root { --fondo:#0c1240; --boton:#1f2f7a; --borde:#3a4ca8; --amarillo:#ffd43c; --texto:#ececec;
+    --rojo:#e6463c; --azul:#5aaaf0; --verde:#5ac86e; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; overflow:hidden; background:var(--fondo); color:var(--texto);
+    font-family:system-ui, -apple-system, "DejaVu Sans", sans-serif; user-select:none;
+    -webkit-user-select:none; touch-action:none; overscroll-behavior:none; }
+  #pad { position:fixed; inset:0; display:grid; grid-template-rows:auto 1fr;
+    padding:max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+            max(10px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  .arriba { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .hombro { width:28vw; max-width:220px; height:13vh; min-height:44px; border-radius:14px 14px 22px 22px; }
+  #estado { font-size:14px; color:#97a3d6; text-align:center; flex:1; }
+  #estado a { color:var(--amarillo); }
+  .cuerpo { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; }
+  button { font:inherit; color:var(--texto); background:var(--boton); border:2px solid var(--borde);
+    font-weight:800; padding:0; touch-action:none; }
+  button.on, .flecha.on { background:var(--amarillo); color:var(--fondo); border-color:var(--amarillo); }
+  #cruz { position:relative; width:min(58vh, 42vw); aspect-ratio:1; justify-self:start; touch-action:none; }
+  .flecha { position:absolute; background:var(--boton); border:2px solid var(--borde); border-radius:10px; }
+  .f-up { left:33%; top:0; width:34%; height:38%; }
+  .f-down { left:33%; bottom:0; width:34%; height:38%; }
+  .f-left { top:33%; left:0; width:38%; height:34%; }
+  .f-right { top:33%; right:0; width:38%; height:34%; }
+  .f-centro { left:31%; top:31%; width:38%; height:38%; border-radius:4px; border-color:var(--boton); }
+  .medio { display:flex; flex-direction:column; align-items:center; gap:14px; }
+  .chico { width:22vw; max-width:150px; height:11vh; min-height:38px; border-radius:30px; font-size:13px;
+    letter-spacing:.06em; }
+  #botones { position:relative; width:min(62vh, 44vw); aspect-ratio:1; justify-self:end; }
+  .redondo { position:absolute; width:36%; aspect-ratio:1; border-radius:50%; font-size:min(7vh, 30px); }
+  .b-x { left:32%; top:0; border-color:var(--azul); }
+  .b-y { left:0; top:32%; border-color:var(--verde); }
+  .b-a { right:0; top:32%; border-color:var(--rojo); }
+  .b-b { left:32%; bottom:0; border-color:var(--amarillo); }
+  #girar { display:none; position:fixed; inset:0; background:var(--fondo); z-index:5;
+    align-items:center; justify-content:center; text-align:center; font-size:22px; padding:24px; }
+  @media (orientation: portrait) { #girar { display:flex; } }
+</style>
+</head>
+<body>
+<div id="girar">Girá el celu para jugar<br>📱 ↻</div>
+<div id="pad">
+  <div class="arriba">
+    <button class="hombro" data-b="l">L</button>
+    <div id="estado">Conectando…</div>
+    <button class="hombro" data-b="r">R</button>
+  </div>
+  <div class="cuerpo">
+    <div id="cruz" aria-label="Cruz de direcciones">
+      <div class="flecha f-up" data-d="up"></div><div class="flecha f-down" data-d="down"></div>
+      <div class="flecha f-left" data-d="left"></div><div class="flecha f-right" data-d="right"></div>
+      <div class="flecha f-centro"></div>
+    </div>
+    <div class="medio">
+      <button class="chico" data-b="select">SELECT</button>
+      <button class="chico" data-b="start">START</button>
+    </div>
+    <div id="botones">
+      <button class="redondo b-x" data-b="x">X</button>
+      <button class="redondo b-y" data-b="y">Y</button>
+      <button class="redondo b-a" data-b="a">A</button>
+      <button class="redondo b-b" data-b="b">B</button>
+    </div>
+  </div>
+</div>
+<script>
+  const estado = document.getElementById("estado");
+  let ws = null, sinArreglo = false;
+
+  function conectar() {
+    ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+    ws.onmessage = (ev) => {
+      if (ev.data === "ok") {
+        estado.innerHTML = "🎮 Listo · SELECT+START sale del juego · <a href='/'>Control</a>";
+      } else if (ev.data.startsWith("error")) {
+        sinArreglo = true;
+        estado.textContent = ev.data.slice(6);
+      }
+    };
+    ws.onclose = () => {
+      soltarTodo();
+      if (!sinArreglo) {
+        estado.textContent = "Reconectando…";
+        setTimeout(conectar, 1500);
+      }
+    };
+  }
+  function enviar(apretado, boton) {
+    if (ws && ws.readyState === 1) ws.send((apretado ? "1 " : "0 ") + boton);
+    if (apretado && navigator.vibrate) navigator.vibrate(10);
+  }
+  setInterval(() => { if (ws && ws.readyState === 1) ws.send("ping"); }, 10000);
+
+  // Botones (varios dedos a la vez)
+  document.querySelectorAll("button[data-b]").forEach((btn) => {
+    const b = btn.dataset.b;
+    const soltar = (e) => {
+      if (!btn._dedos.has(e.pointerId)) return;
+      btn._dedos.delete(e.pointerId);
+      if (btn._dedos.size === 0) { btn.classList.remove("on"); enviar(false, b); }
+    };
+    btn._dedos = new Set();
+    btn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      btn.setPointerCapture(e.pointerId);
+      if (btn._dedos.size === 0) { btn.classList.add("on"); enviar(true, b); }
+      btn._dedos.add(e.pointerId);
+    });
+    btn.addEventListener("pointerup", soltar);
+    btn.addEventListener("pointercancel", soltar);
+    btn.addEventListener("contextmenu", (e) => e.preventDefault());
+  });
+
+  // Cruz: se puede deslizar el dedo y hacer diagonales
+  const cruz = document.getElementById("cruz");
+  const flechas = {};
+  cruz.querySelectorAll("[data-d]").forEach((f) => { flechas[f.dataset.d] = f; });
+  let direcciones = new Set();
+  function ponerDirecciones(nuevas) {
+    for (const d of direcciones) if (!nuevas.has(d)) { enviar(false, d); flechas[d].classList.remove("on"); }
+    for (const d of nuevas) if (!direcciones.has(d)) { enviar(true, d); flechas[d].classList.add("on"); }
+    direcciones = nuevas;
+  }
+  function leerCruz(e) {
+    const r = cruz.getBoundingClientRect();
+    const dx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
+    const dy = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
+    const zona = 0.18, d = new Set();
+    if (Math.abs(dx) > zona && Math.abs(dx) >= 0.41 * Math.abs(dy)) d.add(dx < 0 ? "left" : "right");
+    if (Math.abs(dy) > zona && Math.abs(dy) >= 0.41 * Math.abs(dx)) d.add(dy < 0 ? "up" : "down");
+    ponerDirecciones(d);
+  }
+  let dedoCruz = null;
+  cruz.addEventListener("pointerdown", (e) => {
+    e.preventDefault(); dedoCruz = e.pointerId; cruz.setPointerCapture(e.pointerId); leerCruz(e);
+  });
+  cruz.addEventListener("pointermove", (e) => { if (e.pointerId === dedoCruz) leerCruz(e); });
+  const soltarCruz = (e) => { if (e.pointerId === dedoCruz) { dedoCruz = null; ponerDirecciones(new Set()); } };
+  cruz.addEventListener("pointerup", soltarCruz);
+  cruz.addEventListener("pointercancel", soltarCruz);
+
+  function soltarTodo() {
+    ponerDirecciones(new Set());
+    document.querySelectorAll("button.on").forEach((b) => {
+      b.classList.remove("on"); b._dedos.clear(); enviar(false, b.dataset.b);
+    });
+  }
+
+  // Pantalla completa, horizontal y sin que se apague la pantalla
+  let pantallaLista = false;
+  document.addEventListener("pointerdown", async () => {
+    if (pantallaLista) return;
+    pantallaLista = true;
+    try { await document.documentElement.requestFullscreen(); } catch (e) {}
+    try { await screen.orientation.lock("landscape"); } catch (e) {}
+    try { if (navigator.wakeLock) await navigator.wakeLock.request("screen"); } catch (e) {}
+  }, { capture: true });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) soltarTodo(); });
+
+  conectar();
 </script>
 </body>
 </html>
