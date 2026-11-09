@@ -1,0 +1,20 @@
+#!/bin/sh
+# Arranca la "tele vieja" apenas se prende la netbook.
+APP=/opt/televieja
+
+xset s off -dpms s noblank 2>/dev/null
+xsetroot -solid black 2>/dev/null
+"$APP/bin/pantalla.sh" auto
+
+# Gestor de ventanas mínimo: pone todo en pantalla completa.
+matchbox-window-manager -use_titlebar no -use_cursor no &
+
+while true; do
+    PYTHONPATH="$APP" python3 -m televieja.menu
+    codigo=$?
+    if [ "$codigo" = 10 ]; then
+        touch /tmp/televieja-terminal
+        break
+    fi
+    sleep 1
+done
