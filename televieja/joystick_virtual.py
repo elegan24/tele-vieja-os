@@ -20,6 +20,8 @@ MAPA_MENU = {
     "left": ["hat", 0, "left"], "right": ["hat", 0, "right"],
 }
 MAPA_MENU.update({nombre: ["btn", i] for i, nombre in enumerate(BOTONES)})
+# La palanca del celu (modo "Palanca") mueve los ejes X/Y.
+MAPA_MENU.update({"stick_x": ["axis", 0, 1], "stick_y": ["axis", 1, 1]})
 
 
 class ErrorJoystick(Exception):
@@ -74,6 +76,15 @@ class JoystickVirtual:
                 return
             self.ui.syn()
 
+    def palanca(self, x, y):
+        """x, y entre -100 y 100 (como viene del celu)."""
+        x = max(-100, min(100, int(x)))
+        y = max(-100, min(100, int(y)))
+        with self.lock:
+            self.ui.write(self.e.EV_ABS, self.e.ABS_X, x * 32767 // 100)
+            self.ui.write(self.e.EV_ABS, self.e.ABS_Y, y * 32767 // 100)
+            self.ui.syn()
+
     def cerrar(self):
         with self.lock:
             try:
@@ -82,6 +93,8 @@ class JoystickVirtual:
                         self.ui.write(self.e.EV_KEY, self.codigos[nombre], 0)
                 self.apretados.clear()
                 self._hat()
+                self.ui.write(self.e.EV_ABS, self.e.ABS_X, 0)
+                self.ui.write(self.e.EV_ABS, self.e.ABS_Y, 0)
                 self.ui.syn()
             finally:
                 self.ui.close()

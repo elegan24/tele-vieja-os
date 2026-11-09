@@ -119,7 +119,8 @@ TeleVieja/
 │   ├── GameBoy/            .gb .gbc
 │   ├── GameBoyAdvance/     .gba
 │   ├── NeoGeo/             .zip  (+ neogeo.zip, el BIOS, en la misma carpeta)
-│   └── PlayStation/        .cue+.bin, .chd, .pbp (ver "Juegos de PlayStation")
+│   ├── PlayStation/        .cue+.bin, .chd, .pbp (ver "Juegos de PlayStation")
+│   └── Nintendo64/         .z64 .n64 .v64 .zip (experimental, ver "Nintendo 64")
 ├── Historietas/            .cbz .cbr .pdf o carpetas con imágenes
 ├── Radio/                  radionovelas y música (.mp3, .ogg, ...)
 ├── Partidas/               (las partidas guardadas de los juegos)
@@ -195,6 +196,28 @@ juego no se ponga lento). No está probado en la netbook todavía: probalo con t
   (si tu joystick no los tiene, esperá y los saltea). El joystick del celu ya los trae.
 - La tarjeta de memoria se guarda sola en `TeleVieja/Partidas`.
 
+### Nintendo 64 (experimental)
+
+La N64 pide mucho más que la PS1: necesita una placa de video con 3D moderno (OpenGL 3.3).
+Por eso **aparece en Juegos solo si la netbook puede**. TeleVieja se fija sola qué placa tiene:
+
+| Netbook | N64 |
+|---|---|
+| Atom N450 / N455 / N570 (GMA 3150) | ❌ no aparece: la placa no alcanza |
+| Atom N2600 / N2800 | ❌ no aparece: sin 3D |
+| Celeron (últimos años del plan) | 🟡 aparece; algunos juegos andan |
+| Juana Manso (Celeron N4020) | ✅ aparece; muchos juegos andan bien |
+
+(Es lo que se espera por el hardware de cada una; no está probado en ninguna todavía.)
+
+- Usa **Mupen64Plus-Next** a la resolución original (320x240), que es lo más liviano.
+- Muchos juegos de N64 (Mario 64, Zelda) se juegan con **palanca analógica**:
+  - Con un joystick con palancas: al configurarlo te pide moverlas (si no tiene, esperá y lo saltea).
+  - Con el **celu**: en el joystick tocá **"Usar palanca"** y la cruz se convierte en palanca.
+  - La palanca derecha hace de botones C (la cámara en Mario 64).
+- Botones: A y B de la N64 = B e Y del joystick, Z = L2, L y R = L y R.
+- Si querés que aparezca igual (o esconderla), poné `N64=si` o `N64=no` en las opciones.
+
 ### Videos más livianos
 
 La netbook no tiene aceleración de video. En una tele de tubo no se nota la diferencia,
@@ -253,7 +276,8 @@ un control con cruz, OK, volver, inicio, pausa, volumen y botones para los juego
 
 **El celular como joystick.** En esa misma página tocá **"🎮 Usar el celu como joystick"**,
 girá el celu y aparece un joystick tipo Super Nintendo: cruz, A, B, X, Y, L, R, SELECT y START
-(y L2/R2 arriba, para los juegos de PS1).
+(y L2/R2 arriba, para los juegos de PS1). El botón **"Usar palanca"** cambia la cruz por una
+palanca analógica, para los juegos de N64.
 Para la netbook es un joystick USB más, así que sirve para **jugar** y también para el menú.
 
 - **Dos jugadores:** cada celu que abre el joystick es un joystick distinto. Podés jugar
@@ -314,6 +338,7 @@ En `~/.config/televieja/opciones.conf` (desde *Opciones → Salir a la terminal*
 | `RESOLUCION` | `640x480` (si el conversor no la toma: `800x600`) |
 | `CONTROL_CELULAR` | `si`/`no`: la página para manejar la tele desde el celu |
 | `PUERTO_CELULAR` | El puerto de esa página (`8080`) |
+| `N64` | `auto` (aparece si la placa de video puede), `si` o `no` |
 
 Para volver al menú desde la terminal: `startx`.
 
@@ -350,4 +375,5 @@ Para volver al menú desde la terminal: `startx`.
 - `pruebas/prueba_menu.py`: recorre el menú sin pantalla (también con el celu) y guarda capturas.
 
 Emuladores: nestopia (Family), snes9x2010 (Super Nintendo), Genesis Plus GX (Sega),
-Gambatte (Game Boy), gpsp/mGBA (GBA), FBNeo (Neo Geo) y PCSX ReARMed (PlayStation).
+Gambatte (Game Boy), gpsp/mGBA (GBA), FBNeo (Neo Geo), PCSX ReARMed (PlayStation)
+y Mupen64Plus-Next (Nintendo 64, experimental).

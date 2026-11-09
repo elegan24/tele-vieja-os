@@ -447,7 +447,10 @@ class ListaSistemas(Lista):
 
     def cargar(self):
         self.items = []
+        opciones = config.leer_opciones()
         for s in config.SISTEMAS:
+            if not config.sistema_visible(s, opciones):
+                continue
             roms = [r for r in config.listar_en_todas(("Juegos", s["carpeta"]), s["ext"])
                     if os.path.basename(r).lower() not in s.get("excluir", ())]
             if s.get("discos"):
@@ -750,8 +753,14 @@ PASOS_JOYSTICK = [
     ("r2", "el gatillo R2 (para PS1)", False),
     ("select", "SELECT", True),
     ("start", "START", True),
+    # Palancas analógicas (para la N64): solo si el joystick las tiene.
+    ("stick_x", "la PALANCA izquierda a la DERECHA", False),
+    ("stick_y", "la PALANCA izquierda para ABAJO", False),
+    ("cstick_x", "la PALANCA derecha a la DERECHA", False),
+    ("cstick_y", "la PALANCA derecha para ABAJO", False),
 ]
 ESPERA_OPCIONAL = 6.0
+SOLO_EJES = {"stick_x", "stick_y", "cstick_x", "cstick_y"}
 
 
 class Calibrar(Pantalla):
@@ -813,6 +822,8 @@ class Calibrar(Pantalla):
                 enlace = ["axis", ev.axis, 1 if ev.value > 0 else -1]
         if enlace is None:
             return
+        if PASOS_JOYSTICK[self.paso][0] in SOLO_EJES and enlace[0] != "axis":
+            return  # para las palancas solo vale mover una palanca
         if enlace in self.mapa.values():
             self.queja = "Ese ya lo usaste, probá con otro"
             self.queja_hasta = time.monotonic() + 1.5

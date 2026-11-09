@@ -2,6 +2,7 @@
 import glob
 import os
 import re
+import subprocess
 
 HOME = os.path.expanduser("~")
 APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -42,6 +43,7 @@ OPCIONES_POR_DEFECTO = {
     "SONIDOS_MENU": "si",
     "RESOLUCION": "640x480",
     "CONTROL_CELULAR": "si",
+    "N64": "auto",
     "PUERTO_CELULAR": "8080",
 }
 
@@ -63,7 +65,56 @@ SISTEMAS = [
     {"id": "ps1", "nombre": "PlayStation", "carpeta": "PlayStation",
      "ext": (".cue", ".chd", ".pbp", ".m3u", ".iso", ".img", ".bin"),
      "cores": ["pcsx_rearmed"], "discos": True},
+    # Experimental: solo aparece si la placa de video puede (ver video_para_n64).
+    {"id": "n64", "nombre": "Nintendo 64 (experimental)", "carpeta": "Nintendo64",
+     "ext": (".z64", ".n64", ".v64", ".zip"), "cores": ["mupen64plus_next"],
+     "experimental": "N64"},
 ]
+
+_video_3d = None
+
+
+def analizar_glxinfo(texto):
+    """Lee la salida de "glxinfo -B". Devuelve (alcanza, motivo)."""
+    renderer = re.search(r"OpenGL renderer string:\s*(.*)", texto)
+    renderer = renderer.group(1).strip() if renderer else ""
+    acelerado = re.search(r"Accelerated:\s*(yes|no)", texto)
+    nucleo = re.search(r"Max core profile version:\s*(\d+)\.(\d+)", texto)
+    if not renderer:
+        return False, "No pude averiguar qué placa de video tiene"
+    if any(s in renderer.lower() for s in ("llvmpipe", "softpipe", "swrast")) or \
+            (acelerado and acelerado.group(1) == "no"):
+        return False, "La placa de video no tiene 3D (%s)" % renderer
+    version = (int(nucleo.group(1)), int(nucleo.group(2))) if nucleo else (0, 0)
+    if version < (3, 3):
+        return False, "La placa de video no alcanza: tiene OpenGL %d.%d y hace falta 3.3" % version
+    return True, "%s (OpenGL %d.%d)" % (renderer, version[0], version[1])
+
+
+def video_para_n64():
+    """¿La placa de video puede con la Nintendo 64? Se averigua una vez con glxinfo."""
+    global _video_3d
+    if _video_3d is None:
+        try:
+            texto = subprocess.run(["glxinfo", "-B"], capture_output=True, text=True,
+                                   timeout=15).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            texto = ""
+        _video_3d = analizar_glxinfo(texto) if texto else (False, "Falta glxinfo (mesa-utils)")
+    return _video_3d
+
+
+def sistema_visible(sistema, opciones):
+    """Las consolas experimentales se muestran según la opción (auto / si / no)."""
+    clave = sistema.get("experimental")
+    if not clave:
+        return True
+    valor = opciones.get(clave, "auto").lower()
+    if valor in ("si", "sí", "yes", "1"):
+        return True
+    if valor in ("no", "0"):
+        return False
+    return video_para_n64()[0]
 
 
 def _referencias(archivo):

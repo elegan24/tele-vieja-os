@@ -43,7 +43,7 @@ verde "==> 1/7 Instalando programas (puede tardar bastante)..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 PAQUETES=(
-    xserver-xorg-core xserver-xorg-input-libinput xinit x11-xserver-utils
+    xserver-xorg-core xserver-xorg-input-libinput xinit x11-xserver-utils mesa-utils
     matchbox-window-manager libgl1-mesa-dri
     python3 python3-pygame python3-qrcode python3-evdev fonts-dejavu-core
     mpv ffmpeg alsa-utils
@@ -73,7 +73,7 @@ find "$APP" -name '__pycache__' -prune -exec rm -rf {} +
 
 verde "==> 3/7 Bajando emuladores que no vienen en Debian (Neo Geo, PlayStation, Super Nintendo liviano, GBA)..."
 if [ -n "$ARQ_LIBRETRO" ]; then
-    for core in fbneo snes9x2010 gpsp pcsx_rearmed; do
+    for core in fbneo snes9x2010 gpsp pcsx_rearmed mupen64plus_next; do
         if [ -f "$APP/cores/${core}_libretro.so" ]; then
             echo "   $core ya estaba."
             continue
@@ -96,6 +96,7 @@ sudo -u "$USUARIO" mkdir -p \
     "$R/Videos" "$R/Canal/Programas" "$R/Canal/Tandas" \
     "$R/Juegos/Family" "$R/Juegos/SuperNintendo" "$R/Juegos/Sega" \
     "$R/Juegos/GameBoy" "$R/Juegos/GameBoyAdvance" "$R/Juegos/NeoGeo" "$R/Juegos/PlayStation" \
+    "$R/Juegos/Nintendo64" \
     "$R/Historietas" "$R/Radio" "$R/Partidas" "$R/BIOS" \
     "$CASA/.config/televieja" "$CASA/.config/mpv"
 
@@ -122,6 +123,8 @@ RESOLUCION=640x480
 # Manejar la tele desde el celular (mismo WiFi): si/no y puerto
 CONTROL_CELULAR=si
 PUERTO_CELULAR=8080
+# Nintendo 64 (experimental): auto = solo si la placa de video puede; si / no para forzar
+N64=auto
 EOF
     chown "$USUARIO:$USUARIO" "$CASA/.config/televieja/opciones.conf"
 fi

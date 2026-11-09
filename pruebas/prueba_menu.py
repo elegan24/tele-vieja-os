@@ -75,6 +75,7 @@ def preparar_contenido():
     tocar(os.path.join(ff7, "Final Fantasy VII.m3u"),
           "\n".join("Final Fantasy VII (Disc %d).chd" % d for d in (1, 2, 3)).encode())
     tocar(os.path.join(ps1, "Juego Suelto.bin"))
+    tocar(os.path.join(R, "Juegos", "Nintendo64", "Super Mario 64 (USA).z64"))
     tocar(os.path.join(ps1, "Pistas", "Wipeout.cue"), b"FILE Wipeout.bin BINARY\n")
     tocar(os.path.join(ps1, "Pistas", "Wipeout.bin"))
     tocar(os.path.join(R, "Radio", "Kaliman", "Episodio 001.mp3"))
@@ -124,6 +125,9 @@ class PadFalso:
 
     def boton(self, nombre, apretado):
         self.eventos.append((nombre, apretado))
+
+    def palanca(self, x, y):
+        self.eventos.append(("palanca", x, y))
 
     def cerrar(self):
         self.cerrado = True
@@ -177,10 +181,11 @@ def probar_joystick_celular():
     print("sin uinput, el celu muestra:", respuesta[0])
     # 2) con un joystick: los botones llegan apretados y soltados, y al cortar se suelta todo
     remoto.crear_joystick = PadFalso
-    assert websocket(["1 a", "1 right", "ping", "0 right", "0 a", "1 rm -rf", "1 start"]) == ["ok"]
+    assert websocket(["1 a", "1 right", "ping", "0 right", "0 a", "1 rm -rf", "1 start",
+                      "ax 50 -100", "ax x y", "0 start"]) == ["ok"]
     pad = PadFalso.creados[-1]
     assert pad.eventos == [("a", True), ("right", True), ("right", False), ("a", False),
-                           ("start", True)], pad.eventos
+                           ("start", True), ("palanca", 50, -100), ("start", False)], pad.eventos
     assert pad.cerrado
     # 3) el perfil de RetroArch del celu coincide con el orden de botones del joystick virtual
     texto = mando.perfil_retroarch(joystick_virtual.NOMBRE, joystick_virtual.VENDOR,
@@ -191,6 +196,8 @@ def probar_joystick_celular():
     assert 'input_vendor_id = "%d"' % 0x1209 in texto
     for i, nombre in enumerate(joystick_virtual.BOTONES):
         assert joystick_virtual.MAPA_MENU[nombre] == ["btn", i]
+    assert 'input_l_x_plus_axis = "+0"' in texto and 'input_l_x_minus_axis = "-0"' in texto
+    assert 'input_l_y_plus_axis = "+1"' in texto and 'input_l_y_minus_axis = "-1"' in texto
 
 
 def probar_perfiles_retroarch():
@@ -200,13 +207,16 @@ def probar_perfiles_retroarch():
     assert mando.vid_pid(guid) == (0x046D, 0xC216), mando.vid_pid(guid)
     mando.guardar_calibracion(guid, "Logitech Dual Action",
                               {"up": ["hat", 0, "up"], "a": ["btn", 2], "b": ["btn", 1],
-                               "left": ["axis", 0, -1], "select": ["btn", 8], "start": ["btn", 9]})
+                               "left": ["axis", 0, -1], "select": ["btn", 8], "start": ["btn", 9],
+                               # palanca derecha "al revés": al mover a la derecha el eje 3 baja
+                               "cstick_x": ["axis", 3, -1]})
     carpeta = os.path.join(config.AUTOCONFIG_DIR, "udev")
     archivos = sorted(os.listdir(carpeta))
     assert "televieja-celular.cfg" in archivos and len(archivos) == 2, archivos
     perfil = open(os.path.join(carpeta, [a for a in archivos if "celular" not in a][0])).read()
     assert 'input_vendor_id = "1133"' in perfil and 'input_left_axis = "-0"' in perfil, perfil
     assert 'input_enable_hotkey_btn = "8"' in perfil
+    assert 'input_r_x_plus_axis = "-3"' in perfil and 'input_r_x_minus_axis = "+3"' in perfil, perfil
     base = open(config.ARCHIVO_RA_JOYSTICK).read()
     assert 'input_autodetect_enable = "true"' in base and config.AUTOCONFIG_DIR in base
     assert "input_player1" not in base  # nada global: cada joystick usa su perfil
@@ -262,6 +272,27 @@ def probar_controles(app, paso, foto):
     probar_perfiles_retroarch()
 
 
+def probar_glxinfo():
+    gma3150 = """OpenGL vendor string: Intel Open Source Technology Center
+OpenGL renderer string: Mesa DRI Intel(R) IGD
+    Accelerated: yes
+Max core profile version: 0.0
+Max compat profile version: 2.1
+"""
+    software = """OpenGL renderer string: llvmpipe (LLVM 15.0.6, 128 bits)
+    Accelerated: no
+Max core profile version: 4.5
+"""
+    juana_manso = """OpenGL renderer string: Mesa Intel(R) UHD Graphics 600 (GLK 2)
+    Accelerated: yes
+Max core profile version: 4.6
+"""
+    assert config.analizar_glxinfo(gma3150) == (False, "La placa de video no alcanza: tiene OpenGL 0.0 y hace falta 3.3")
+    assert config.analizar_glxinfo(software)[0] is False
+    assert config.analizar_glxinfo(juana_manso)[0] is True
+    assert config.analizar_glxinfo("")[0] is False
+
+
 def main():
     pygame.display.init()
     pygame.font.init()
@@ -273,6 +304,8 @@ def main():
     # En esta prueba no hay emuladores instalados: hacemos de cuenta que sí.
     config.buscar_core = lambda nombres: "/falso/%s_libretro.so" % nombres[0]
     lanzados = []
+    config._video_3d = (False, "prueba: placa sin 3D")  # no correr glxinfo acá
+    probar_glxinfo()
     app = menu.App()
     app.lanzar = lambda orden, *a, **k: (lanzados.append(orden), (0, 10.0, ""))[1]
 
@@ -315,6 +348,14 @@ def main():
     paso("down", "a")                 # Juegos
     foto("04-juegos")
     assert app.actual.items[0].extra == "16", app.actual.items[0].extra  # 15 + 1 del disco
+    # N64 experimental: con la placa de esta prueba "sin 3D" no aparece...
+    assert not any("Nintendo 64" in it.texto for it in app.actual.items)
+    # ...y con N64=si en las opciones, sí
+    with open(config.ARCHIVO_OPCIONES, "a") as f:
+        f.write("N64=si\n")
+    app.actual.cargar()
+    n64 = [it for it in app.actual.items if "Nintendo 64" in it.texto]
+    assert n64 and n64[0].extra == "1", [(it.texto, it.extra) for it in app.actual.items]
     ps1 = [it for it in app.actual.items if it.texto == "PlayStation"][0]
     assert ps1.extra == "5", ps1.extra    # Crash, Tekken, FF7 (una vez), Juego Suelto, Wipeout
     paso("a")                         # Family

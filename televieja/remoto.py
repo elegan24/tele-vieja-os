@@ -102,6 +102,11 @@ class _Manejador(BaseHTTPRequestHandler):
                     partes = linea.split()
                     if len(partes) == 2 and partes[0] in ("0", "1") and partes[1] in BOTONES_JOYSTICK:
                         pad.boton(partes[1], partes[0] == "1")
+                    elif len(partes) == 3 and partes[0] == "ax":  # palanca: "ax X Y"
+                        try:
+                            pad.palanca(int(partes[1]), int(partes[2]))
+                        except ValueError:
+                            pass
         except (OSError, ValueError):
             pass  # se cortó el WiFi, se apagó la pantalla del celu, etc.
         finally:
@@ -313,6 +318,12 @@ PAGINA_JOYSTICK = """<!doctype html>
   .f-left { top:33%; left:0; width:38%; height:34%; }
   .f-right { top:33%; right:0; width:38%; height:34%; }
   .f-centro { left:31%; top:31%; width:38%; height:38%; border-radius:4px; border-color:var(--boton); }
+  #base, #perilla { display:none; position:absolute; border-radius:50%; }
+  #base { inset:3%; background:var(--boton); border:2px solid var(--borde); }
+  #perilla { width:38%; height:38%; left:31%; top:31%; background:#2c41a0; border:3px solid var(--amarillo); }
+  #cruz.palanca .flecha { display:none; }
+  #cruz.palanca #base, #cruz.palanca #perilla { display:block; }
+  #modo { background:transparent; border-style:dashed; color:#97a3d6; }
   .medio { display:flex; flex-direction:column; align-items:center; gap:14px; }
   .chico { width:22vw; max-width:150px; height:11vh; min-height:38px; border-radius:30px; font-size:13px;
     letter-spacing:.06em; }
@@ -342,10 +353,12 @@ PAGINA_JOYSTICK = """<!doctype html>
       <div class="flecha f-up" data-d="up"></div><div class="flecha f-down" data-d="down"></div>
       <div class="flecha f-left" data-d="left"></div><div class="flecha f-right" data-d="right"></div>
       <div class="flecha f-centro"></div>
+      <div id="base"></div><div id="perilla"></div>
     </div>
     <div class="medio">
       <button class="chico" data-b="select">SELECT</button>
       <button class="chico" data-b="start">START</button>
+      <button class="chico" id="modo">Usar palanca</button>
     </div>
     <div id="botones">
       <button class="redondo b-x" data-b="x">X</button>
@@ -363,7 +376,7 @@ PAGINA_JOYSTICK = """<!doctype html>
     ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
     ws.onmessage = (ev) => {
       if (ev.data === "ok") {
-        estado.innerHTML = "🎮 Listo · SELECT+START sale del juego · <a href='/'>Control</a>";
+        estado.innerHTML = "🎮 Listo · <a href='/'>Control</a>";
       } else if (ev.data.startsWith("error")) {
         sinArreglo = true;
         estado.textContent = ev.data.slice(6);
@@ -413,10 +426,40 @@ PAGINA_JOYSTICK = """<!doctype html>
     for (const d of nuevas) if (!direcciones.has(d)) { enviar(true, d); flechas[d].classList.add("on"); }
     direcciones = nuevas;
   }
+  // Modo palanca (analógica, para la N64): manda "ax X Y" con valores de -100 a 100
+  const perilla = document.getElementById("perilla");
+  const botonModo = document.getElementById("modo");
+  let modoPalanca = false, palanca = [0, 0], palancaEnviada = [0, 0];
+  try { modoPalanca = localStorage.getItem("televieja-palanca") === "si"; } catch (e) {}
+  function mostrarModo() {
+    cruz.classList.toggle("palanca", modoPalanca);
+    botonModo.textContent = modoPalanca ? "Usar cruz" : "Usar palanca";
+  }
+  botonModo.addEventListener("click", () => {
+    ponerDirecciones(new Set()); moverPalanca(0, 0);
+    modoPalanca = !modoPalanca;
+    try { localStorage.setItem("televieja-palanca", modoPalanca ? "si" : "no"); } catch (e) {}
+    mostrarModo();
+  });
+  function moverPalanca(x, y) {
+    const largo = Math.hypot(x, y);
+    if (largo > 1) { x /= largo; y /= largo; }
+    palanca = [Math.round(x * 100), Math.round(y * 100)];
+    const r = cruz.getBoundingClientRect();
+    perilla.style.transform = "translate(" + (x * r.width * 0.31) + "px," + (y * r.height * 0.31) + "px)";
+  }
+  setInterval(() => {  // como mucho ~30 mensajes por segundo
+    if (palanca[0] === palancaEnviada[0] && palanca[1] === palancaEnviada[1]) return;
+    if (ws && ws.readyState === 1) ws.send("ax " + palanca[0] + " " + palanca[1]);
+    palancaEnviada = palanca.slice();
+  }, 33);
+  mostrarModo();
+
   function leerCruz(e) {
     const r = cruz.getBoundingClientRect();
     const dx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
     const dy = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
+    if (modoPalanca) { moverPalanca(dx / 0.75, dy / 0.75); return; }
     const zona = 0.18, d = new Set();
     if (Math.abs(dx) > zona && Math.abs(dx) >= 0.41 * Math.abs(dy)) d.add(dx < 0 ? "left" : "right");
     if (Math.abs(dy) > zona && Math.abs(dy) >= 0.41 * Math.abs(dx)) d.add(dy < 0 ? "up" : "down");
@@ -427,12 +470,15 @@ PAGINA_JOYSTICK = """<!doctype html>
     e.preventDefault(); dedoCruz = e.pointerId; cruz.setPointerCapture(e.pointerId); leerCruz(e);
   });
   cruz.addEventListener("pointermove", (e) => { if (e.pointerId === dedoCruz) leerCruz(e); });
-  const soltarCruz = (e) => { if (e.pointerId === dedoCruz) { dedoCruz = null; ponerDirecciones(new Set()); } };
+  const soltarCruz = (e) => {
+    if (e.pointerId === dedoCruz) { dedoCruz = null; ponerDirecciones(new Set()); moverPalanca(0, 0); }
+  };
   cruz.addEventListener("pointerup", soltarCruz);
   cruz.addEventListener("pointercancel", soltarCruz);
 
   function soltarTodo() {
     ponerDirecciones(new Set());
+    moverPalanca(0, 0);
     document.querySelectorAll("button.on").forEach((b) => {
       b.classList.remove("on"); b._dedos.clear(); enviar(false, b.dataset.b);
     });

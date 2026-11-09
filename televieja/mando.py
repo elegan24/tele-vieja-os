@@ -85,6 +85,10 @@ def vid_pid(guid):
     return (vid, pid) if vid else (None, None)
 
 
+# Palancas analógicas: "stick" = izquierda, "cstick" = derecha (cámara / botones C de la N64).
+ANALOGICOS = {"stick_x", "stick_y", "cstick_x", "cstick_y"}
+PALANCAS_RA = {"stick_x": "l_x", "stick_y": "l_y", "cstick_x": "r_x", "cstick_y": "r_y"}
+
 NOMBRES_RA = ("up", "down", "left", "right", "a", "b", "x", "y", "l", "r", "l2", "r2",
               "select", "start")
 ATAJOS_RA = {"select": "enable_hotkey", "start": "exit_emulator",
@@ -110,6 +114,13 @@ def perfil_retroarch(nombre, vid, pid, mapa):
         if enlace:
             tipo, valor = _valor_ra(enlace)
             lineas.append('input_%s_%s = "%s"' % (atajo, tipo, valor))
+    for n, ra in PALANCAS_RA.items():
+        enlace = mapa.get(n)
+        if enlace and enlace[0] == "axis":
+            eje, signo = enlace[1], enlace[2]
+            mas, menos = ("+", "-") if signo > 0 else ("-", "+")
+            lineas.append('input_%s_plus_axis = "%s%d"' % (ra, mas, eje))
+            lineas.append('input_%s_minus_axis = "%s%d"' % (ra, menos, eje))
     return "\n".join(lineas) + "\n"
 
 
@@ -238,6 +249,8 @@ class Mando:
             self.estado_ejes[clave] = ahora
             if ahora != 0 and ahora != antes:
                 for nombre, enlace in mapa.items():
+                    if nombre in ANALOGICOS:
+                        continue  # las palancas son para los juegos, no botones
                     if enlace and enlace[0] == "axis" and enlace[1] == ev.axis and enlace[2] == ahora:
                         nuevos.append(nombre)
                 # Palanca analógica: ejes 0 y 1 siempre mueven el menú.
