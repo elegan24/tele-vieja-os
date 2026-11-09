@@ -33,12 +33,12 @@ def orden_radio(archivos):
 
 def armar_canal(opciones):
     """Mezcla programas y tandas como un canal de aire. Devuelve la ruta de la lista."""
-    programas = config.listar_archivos(config.CARPETA_PROGRAMAS, config.EXT_VIDEO)
+    programas = config.listar_en_todas(("Canal", "Programas"), config.EXT_VIDEO)
     if not programas:
-        programas = config.listar_archivos(config.CARPETA_VIDEOS, config.EXT_VIDEO)
+        programas = config.listar_en_todas(("Videos",), config.EXT_VIDEO)
     if not programas:
         return None
-    tandas = config.listar_archivos(config.CARPETA_TANDAS, config.EXT_VIDEO)
+    tandas = config.listar_en_todas(("Canal", "Tandas"), config.EXT_VIDEO)
     try:
         por_corte = max(0, int(opciones.get("TANDAS_POR_CORTE", "2")))
     except ValueError:

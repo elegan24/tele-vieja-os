@@ -1,0 +1,2 @@
+# TeleVieja: al enchufar un pendrive o disco USB, montarlo solo (en solo lectura).
+ACTION=="add", SUBSYSTEM=="block", SUBSYSTEMS=="usb", ENV{ID_FS_USAGE}=="filesystem", TAG+="systemd", ENV{SYSTEMD_WANTS}+="televieja-disco@%k.service"

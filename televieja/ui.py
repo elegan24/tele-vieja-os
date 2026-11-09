@@ -124,6 +124,10 @@ def icono(sup, nombre, x, y, color):
     elif nombre == "apagar":
         pygame.draw.arc(sup, color, (x + 2, y + 3, 18, 18), 2.2, 7.2, 3)
         pygame.draw.line(sup, color, (x + 11, y), (x + 11, y + 10), 3)
+    elif nombre == "disco":
+        pygame.draw.rect(sup, color, (x, y + 4, 22, 15), border_radius=3)
+        pygame.draw.line(sup, OSCURO, (x + 3, y + 14), (x + 12, y + 14), 2)
+        pygame.draw.circle(sup, OSCURO, (x + 17, y + 14), 2)
     elif nombre == "flecha":
         pygame.draw.polygon(sup, color, [(x + 2, y + 11), (x + 12, y + 2), (x + 12, y + 20)])
         pygame.draw.rect(sup, color, (x + 11, y + 8, 10, 6))

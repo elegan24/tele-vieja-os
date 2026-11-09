@@ -15,6 +15,8 @@ TMP = tempfile.mkdtemp(prefix="televieja-prueba-")
 os.environ["TELEVIEJA_RAIZ"] = os.path.join(TMP, "TeleVieja")
 os.environ["TELEVIEJA_CONFIG"] = os.path.join(TMP, "config")
 os.environ["HOME"] = TMP
+MONTAJES = os.path.join(TMP, "media")
+os.environ["TELEVIEJA_MONTAJES"] = MONTAJES
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pygame  # noqa: E402
@@ -62,6 +64,12 @@ def preparar_contenido():
     tocar(os.path.join(R, "Juegos", "NeoGeo", "mslug.zip"))
     tocar(os.path.join(R, "Juegos", "NeoGeo", "neogeo.zip"))
     tocar(os.path.join(R, "Radio", "Kaliman", "Episodio 001.mp3"))
+    # disco USB con carpeta TeleVieja y otro sin (se recorre entero)
+    disco = os.path.join(MONTAJES, "1234-ABCD", "TeleVieja")
+    tocar(os.path.join(disco, "Videos", "Los Tres Chiflados", "Episodio 1.mp4"))
+    tocar(os.path.join(disco, "Juegos", "Family", "Super Mario Bros. 3 (U).nes"))
+    tocar(os.path.join(disco, "Canal", "Tandas", "Publicidad Topper.mp4"))
+    tocar(os.path.join(MONTAJES, "DISCO2", "Pelis", "Esperando la carroza.mkv"))
     # historieta CBZ de ejemplo
     os.makedirs(os.path.join(R, "Historietas", "Mafalda"), exist_ok=True)
     cbz = os.path.join(R, "Historietas", "Patoruzito 042.cbz")
@@ -100,6 +108,8 @@ def main():
 
     def foto(nombre):
         app._dibujar(app.actual, app.lienzo)
+        if app.aviso:
+            app._dibujar_aviso(app.lienzo)
         pygame.image.save(app.lienzo, os.path.join(SALIDA, nombre + ".png"))
         print("captura:", nombre)
 
@@ -107,13 +117,23 @@ def main():
     paso("down")                      # Videos
     paso("a")
     foto("02-videos")
-    paso("down", "a")                 # entrar a la primera carpeta
+    textos = [it.texto for it in app.actual.items]
+    assert "Disco: 1234-ABCD" in textos and "Disco: DISCO2" in textos, textos
+    app.actual.sel = textos.index("Disco: 1234-ABCD")
+    paso("a")
+    assert app.actual.titulo == "1234-ABCD", app.actual.titulo
+    foto("02b-videos-disco")
+    paso("b")
+    assert app.actual.titulo == "Videos"
+    app.actual.sel = [it.texto for it in app.actual.items].index("El Chavo del 8")
+    paso("a")                         # entrar a la carpeta
     foto("03-videos-carpeta")
     paso("down", "a")                 # reproducir
     assert lanzados and lanzados[-1][0] == "mpv", lanzados
     paso("b", "b")
     paso("down", "a")                 # Juegos
     foto("04-juegos")
+    assert app.actual.items[0].extra == "16", app.actual.items[0].extra  # 15 + 1 del disco
     paso("a")                         # Family
     foto("05-family")
     paso("r", "r")                    # saltar de letra
@@ -141,6 +161,13 @@ def main():
     foto("11-historietas-progreso")
     paso("b", "down", "a")            # Radio
     foto("12-radio")
+    # enchufar un disco con el menú abierto
+    tocar(os.path.join(MONTAJES, "5678-EFGH", "TeleVieja", "Radio", "Tango.mp3"))
+    app.proximo_chequeo = 0
+    app.revisar_discos()
+    assert "Disco conectado" in app.aviso, app.aviso
+    assert any("5678-EFGH" in it.texto for it in app.actual.items)
+    foto("12b-radio-disco-nuevo")
     paso("b")
     app.poner(pantallas.Calibrar("Encontré un joystick nuevo: vamos a configurarlo."))
     foto("13-calibrar")

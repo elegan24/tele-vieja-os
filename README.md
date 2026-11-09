@@ -128,6 +128,23 @@ TeleVieja/
 `TeleVieja` con la misma forma (solo las carpetas que uses), enchufalo en la netbook y
 en el menú elegí **Copiar desde pendrive**. Copia solo lo nuevo; no borra nada.
 
+### Disco externo USB (para tener mucho más)
+
+Si el disco de la netbook te queda chico, enchufá un **disco externo USB** (o un pendrive):
+TeleVieja lo monta solo y su contenido aparece en el menú, **sin copiar nada**.
+
+- Armá en el disco la misma carpeta `TeleVieja` (con `Videos`, `Juegos`, `Historietas`, ...).
+- En **Videos**, **Historietas** y **Radio** aparece como **"Disco: NOMBRE"** arriba de todo.
+  Si el disco no tiene carpeta `TeleVieja`, igual podés recorrerlo entero desde ahí.
+- Los **juegos** del disco se suman a la lista de cada consola, y el **Canal Retro** también
+  usa sus programas y tandas.
+- Se monta en **solo lectura**: lo podés desenchufar cuando quieras sin romper nada.
+  (Las partidas guardadas y "dónde quedaste" se guardan en la netbook.)
+- Sirve con discos formateados en NTFS, exFAT o FAT32 (los de Windows) y ext4 (Linux).
+- El nombre que aparece es la **etiqueta** del disco: ponele uno lindo desde Windows
+  (clic derecho → Cambiar nombre).
+- Discos de 2,5" sin fuente propia: si la netbook no les da suficiente corriente, usá un hub USB con fuente.
+
 Las ROMs se pueden dejar en `.zip`. Lo que no puede ser es `.rar` o `.7z` (para juegos):
 descomprimilos primero.
 
@@ -244,6 +261,8 @@ Para volver al menú desde la terminal: `startx`.
 - `televieja/`: el menú (Python + pygame), dibujado para 640x480 con márgenes para la tele de tubo.
 - `sistema/`: configuración de mpv, RetroArch, el script del Canal Retro (`canal.lua`) y el arranque de X.
 - `bin/pantalla.sh`: elige la salida (tele o netbook). `bin/importar-usb.sh`: copia desde el pendrive.
+- `bin/disco-usb.sh` + `sistema/99-televieja-usb.rules` + `sistema/televieja-disco@.service`:
+  montan solos los discos USB (solo lectura) en `/media/televieja/`.
 - `pruebas/prueba_menu.py`: recorre el menú sin pantalla y guarda capturas.
 
 Emuladores: nestopia (Family), snes9x2010 (Super Nintendo), Genesis Plus GX (Sega),

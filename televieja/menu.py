@@ -76,6 +76,10 @@ class App:
         self.ultimo_minuto = ""
         self.corriendo = True
         self.codigo_salida = 0
+        self.aviso = ""
+        self.aviso_hasta = 0.0
+        self.discos = self._ids_discos()
+        self.proximo_chequeo = 0.0
         self.poner(menu_principal(self))
 
     # --- pantalla física ---------------------------------------------------
@@ -149,6 +153,42 @@ class App:
         if p.info():
             ui.escribir(sup, f.chica, p.info(), ui.GRIS, (ANCHO - MARGEN_X, pie), "topright")
         p.dibujar(self, sup)
+
+    # --- discos USB ------------------------------------------------------------
+    @staticmethod
+    def _ids_discos():
+        return {d["id"]: d["nombre"] for d in config.discos_externos()}
+
+    def revisar_discos(self):
+        """Cada 2 segundos se fija si enchufaron o sacaron un disco USB."""
+        ahora = time.monotonic()
+        if ahora < self.proximo_chequeo:
+            return
+        self.proximo_chequeo = ahora + 2
+        discos = self._ids_discos()
+        if discos == self.discos:
+            return
+        nuevos = [n for i, n in discos.items() if i not in self.discos]
+        if nuevos:
+            self.avisar("Disco conectado: " + ", ".join(nuevos))
+        else:
+            self.avisar("Se desconectó un disco")
+        self.discos = discos
+        self.actual.al_volver(self)
+        self.sucio = True
+
+    def avisar(self, texto, segundos=3.0):
+        self.aviso = texto
+        self.aviso_hasta = time.monotonic() + segundos
+        self.sucio = True
+
+    def _dibujar_aviso(self, sup):
+        f = self.fuentes
+        texto = ui.recortar(f.chica, self.aviso, ANCHO - 2 * MARGEN_X - 40, f.puntos)
+        img = f.chica.render(texto, True, ui.BLANCO)
+        r = img.get_rect(midbottom=(ANCHO // 2, ALTO - MARGEN_Y - 36)).inflate(28, 14)
+        ui.caja(sup, r, borde=ui.VERDE)
+        sup.blit(img, img.get_rect(center=r.center))
 
     # --- programas externos ----------------------------------------------------
     def lanzar(self, orden, control=None, nombre_log="ultimo", combo_salida=False):
@@ -254,6 +294,10 @@ class App:
                 for b in self.mando.repeticiones():
                     self.actual.accion(self, b)
             self.actual.actualizar(self, dt)
+            self.revisar_discos()
+            if self.aviso and time.monotonic() > self.aviso_hasta:
+                self.aviso = ""
+                self.sucio = True
             minuto = time.strftime("%H:%M")
             if minuto != self.ultimo_minuto:
                 self.ultimo_minuto = minuto
@@ -261,6 +305,8 @@ class App:
             if self.sucio:
                 self.sucio = False
                 self._dibujar(self.actual, self.lienzo)
+                if self.aviso:
+                    self._dibujar_aviso(self.lienzo)
                 self.mostrar()
         return self.codigo_salida
 
@@ -288,14 +334,11 @@ def menu_principal(app):
     nombre = app.opciones.get("NOMBRE_CANAL", "TELE VIEJA")
     return Lista(nombre, [
         Item("Canal Retro", lambda app: app.canal(), icono="tele"),
-        Item("Videos", ir(lambda: Explorador("Videos", config.CARPETA_VIDEOS, config.EXT_VIDEO,
-                                             "video", "")), icono="play"),
+        Item("Videos", ir(lambda: Explorador("video", "Videos", config.EXT_VIDEO)), icono="play"),
         Item("Juegos", ir(ListaSistemas), icono="joystick"),
-        Item("Historietas", ir(lambda: Explorador("Historietas", config.CARPETA_HISTORIETAS,
-                                                  config.EXT_HISTORIETA, "historieta", "")),
+        Item("Historietas", ir(lambda: Explorador("historieta", "Historietas", config.EXT_HISTORIETA)),
              icono="libro"),
-        Item("Radio", ir(lambda: Explorador("Radio", config.CARPETA_RADIO, config.EXT_AUDIO,
-                                            "radio", "")), icono="nota"),
+        Item("Radio", ir(lambda: Explorador("radio", "Radio", config.EXT_AUDIO)), icono="nota"),
         Item("Copiar desde pendrive", copiar_pendrive, icono="usb"),
         Item("Opciones", lambda app: app.poner(opciones), icono="engranaje"),
         Item("Apagar", lambda app: app.poner(Confirmar("¿Apagar la tele vieja?",

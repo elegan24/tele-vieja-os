@@ -60,6 +60,74 @@ SISTEMAS = [
 ]
 
 
+# Discos USB: los monta solos bin/disco-usb.sh (solo lectura) en esta carpeta.
+MONTAJES = os.environ.get("TELEVIEJA_MONTAJES", "/media/televieja")
+
+
+def _decodificar_etiqueta(texto):
+    return re.sub(r"\\x([0-9a-fA-F]{2})", lambda m: chr(int(m.group(1), 16)), texto)
+
+
+def _etiquetas():
+    """Nombre de cada disco (la "etiqueta" que le pusiste) según su UUID."""
+    por_dispositivo = {}
+    try:
+        for e in os.listdir("/dev/disk/by-label"):
+            real = os.path.realpath(os.path.join("/dev/disk/by-label", e))
+            por_dispositivo[real] = _decodificar_etiqueta(e)
+    except OSError:
+        return {}
+    por_uuid = {}
+    try:
+        for u in os.listdir("/dev/disk/by-uuid"):
+            real = os.path.realpath(os.path.join("/dev/disk/by-uuid", u))
+            if real in por_dispositivo:
+                por_uuid[u] = por_dispositivo[real]
+    except OSError:
+        pass
+    return por_uuid
+
+
+def discos_externos():
+    """Discos USB conectados. Cada uno: {"id", "nombre", "punto", "raiz"}.
+
+    "raiz" es su carpeta TeleVieja (o None si el disco no tiene una).
+    """
+    try:
+        ids = sorted(os.listdir(MONTAJES))
+    except OSError:
+        return []
+    etiquetas = None
+    discos = []
+    for ident in ids:
+        punto = os.path.join(MONTAJES, ident)
+        try:
+            contenido = os.listdir(punto)
+        except OSError:
+            continue
+        if not contenido:  # carpeta vacía: no hay nada montado
+            continue
+        raiz = next((os.path.join(punto, n) for n in contenido
+                     if n.lower() == "televieja" and os.path.isdir(os.path.join(punto, n))), None)
+        if etiquetas is None:
+            etiquetas = _etiquetas()
+        discos.append({"id": ident, "nombre": etiquetas.get(ident, ident), "punto": punto, "raiz": raiz})
+    return discos
+
+
+def raices():
+    """La carpeta TeleVieja de la netbook más las de los discos USB."""
+    return [RAIZ] + [d["raiz"] for d in discos_externos() if d["raiz"]]
+
+
+def listar_en_todas(partes, extensiones):
+    """Busca archivos en la misma subcarpeta de todas las raíces (netbook + discos)."""
+    archivos = []
+    for r in raices():
+        archivos += listar_archivos(os.path.join(r, *partes), extensiones)
+    return archivos
+
+
 def leer_opciones():
     opciones = dict(OPCIONES_POR_DEFECTO)
     try:

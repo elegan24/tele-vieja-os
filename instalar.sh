@@ -66,7 +66,7 @@ verde "==> 2/7 Copiando TeleVieja a $APP..."
 rm -rf "${APP:?}/televieja" "${APP:?}/sistema" "${APP:?}/bin"
 mkdir -p "$APP/cores"
 cp -r "$AQUI/televieja" "$AQUI/sistema" "$AQUI/bin" "$APP/"
-sed -i "s/@USUARIO@/$USUARIO/" "$APP/bin/importar-usb.sh"
+sed -i "s/@USUARIO@/$USUARIO/" "$APP/bin/importar-usb.sh" "$APP/bin/disco-usb.sh"
 chown -R root:root "$APP"
 chmod 755 "$APP/bin/"*.sh
 find "$APP" -name '__pycache__' -prune -exec rm -rf {} +
@@ -155,7 +155,7 @@ fi
 EOF
 fi
 
-verde "==> 6/7 Permisos (joystick, sonido, apagar)..."
+verde "==> 6/7 Permisos (joystick, sonido, apagar, discos USB)..."
 usermod -aG input,audio,video "$USUARIO"
 cat > /etc/sudoers.d/televieja <<EOF
 $USUARIO ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl reboot, $APP/bin/importar-usb.sh
@@ -166,6 +166,13 @@ visudo -cf /etc/sudoers.d/televieja >/dev/null
 amixer -q sset Master 90% unmute 2>/dev/null || true
 amixer -q sset PCM 90% unmute 2>/dev/null || true
 alsactl store 2>/dev/null || true
+
+# Discos USB: se montan solos (solo lectura) y aparecen en el menú.
+install -m 644 "$APP/sistema/99-televieja-usb.rules" /etc/udev/rules.d/
+install -m 644 "$APP/sistema/televieja-disco@.service" /etc/systemd/system/
+systemctl daemon-reload
+udevadm control --reload-rules 2>/dev/null || true
+udevadm trigger --subsystem-match=block --action=add 2>/dev/null || true
 
 verde "==> 7/7 Arranque silencioso..."
 if [ -f /etc/default/grub ]; then

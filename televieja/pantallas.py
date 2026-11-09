@@ -307,15 +307,32 @@ class Espera(Pantalla):
 
 # --- explorador de carpetas (videos, radio, historietas) ---------------------
 class Explorador(Lista):
-    def __init__(self, titulo, raiz, extensiones, tipo, aviso_vacio):
-        super().__init__(titulo)
-        self.raiz = raiz
-        self.carpeta = raiz
-        self.ext = extensiones
+    """Recorre carpetas. En la primera pantalla suma los discos USB conectados."""
+    TITULOS = {"video": "Videos", "radio": "Radio", "historieta": "Historietas"}
+
+    def __init__(self, tipo, subcarpeta, extensiones):
+        super().__init__(self.TITULOS[tipo])
         self.tipo = tipo          # "video", "radio" o "historieta"
-        self.aviso_vacio = aviso_vacio
+        self.subcarpeta = subcarpeta
+        self.raiz = os.path.join(config.RAIZ, subcarpeta)
+        self.carpeta = self.raiz
+        self.ext = extensiones
+        self.historial = []       # (carpeta, título, elegido) de donde venimos
         self.recuerdo = {}
         self.cargar()
+
+    def _carpetas_de_discos(self):
+        """Por cada disco USB: su TeleVieja/<subcarpeta> o, si no tiene, el disco entero."""
+        salida = []
+        for d in config.discos_externos():
+            if d["raiz"]:
+                carpeta = os.path.join(d["raiz"], self.subcarpeta)
+                if not os.path.isdir(carpeta):
+                    continue
+            else:
+                carpeta = d["punto"]
+            salida.append((d["nombre"], carpeta))
+        return salida
 
     def cargar(self):
         self.items = []
@@ -337,6 +354,11 @@ class Explorador(Lista):
         if self.tipo in ("video", "radio") and len(archivos) > 1:
             self.items.append(Item("Mezclar todo", lambda app: self.reproducir(app, None),
                                    icono="mezclar"))
+        if not self.historial:
+            for nombre, c in self._carpetas_de_discos():
+                self.items.append(Item("Disco: " + nombre,
+                                       lambda app, c=c, n=nombre: self.entrar(app, c, n),
+                                       icono="disco"))
         for c in carpetas:
             nombre = os.path.basename(c)
             if self.tipo == "historieta" and historietas.es_carpeta_historieta(c):
@@ -356,37 +378,40 @@ class Explorador(Lista):
             self.items.append(Item(config.nombre_lindo(os.path.basename(a)), accion,
                                    icono=icono_archivo, extra=extra))
         if not self.items:
-            relativa = os.path.relpath(self.carpeta, os.path.dirname(config.RAIZ))
             self.items.append(Item("(vacío)", apagado=True))
-            self.ayuda = "Cargá cosas en " + relativa
+            if self.historial:
+                self.ayuda = "B: volver"
+            else:
+                self.ayuda = "Cargá cosas en TeleVieja/" + self.subcarpeta
         else:
             self.ayuda = "A: elegir    B: volver    L/R: letra"
         self.sel = min(self.recuerdo.get(self.carpeta, 0), len(self.items) - 1)
-        self.primero = max(0, self.sel - self.visibles + 1)
-        self.titulo = os.path.basename(self.carpeta) if self.carpeta != self.raiz else self.titulo_raiz
+        self.primero = 0
+        self.ajustar()
 
-    @property
-    def titulo_raiz(self):
-        return {"video": "Videos", "radio": "Radio", "historieta": "Historietas"}[self.tipo]
-
-    def entrar(self, app, carpeta):
-        self.recuerdo[self.carpeta] = self.sel
+    def entrar(self, app, carpeta, titulo=None):
+        self.historial.append((self.carpeta, self.titulo, self.sel))
         self.carpeta = carpeta
+        self.titulo = titulo or os.path.basename(carpeta)
         self.cargar()
         app.sucio = True
 
     def volver(self, app):
-        if os.path.normpath(self.carpeta) == os.path.normpath(self.raiz):
+        if not self.historial:
             return super().volver(app)
         app.sonido.tocar("volver")
         self.recuerdo[self.carpeta] = self.sel
-        self.carpeta = os.path.dirname(self.carpeta)
+        self.carpeta, self.titulo, sel = self.historial.pop()
+        self.recuerdo[self.carpeta] = sel
         self.cargar()
         app.sucio = True
 
     def al_volver(self, app):
+        if not os.path.isdir(self.carpeta):  # desenchufaron el disco
+            self.carpeta, self.titulo = self.raiz, self.TITULOS[self.tipo]
+            self.historial.clear()
         anterior = self.sel
-        self.cargar()  # por si cambió la página guardada de una historieta
+        self.cargar()  # por si cambió algo (página guardada, disco nuevo)
         self.sel = anterior
         self.ajustar()
 
@@ -419,8 +444,7 @@ class ListaSistemas(Lista):
     def cargar(self):
         self.items = []
         for s in config.SISTEMAS:
-            carpeta = os.path.join(config.CARPETA_JUEGOS, s["carpeta"])
-            roms = [r for r in config.listar_archivos(carpeta, s["ext"])
+            roms = [r for r in config.listar_en_todas(("Juegos", s["carpeta"]), s["ext"])
                     if os.path.basename(r).lower() not in s.get("excluir", ())]
             core = config.buscar_core(s["cores"])
             if not core:
@@ -434,7 +458,10 @@ class ListaSistemas(Lista):
                                    icono="joystick", extra=extra, apagado=not (roms and core)))
 
     def al_volver(self, app):
-        pass
+        anterior = self.sel
+        self.cargar()  # por si enchufaron o sacaron un disco
+        self.sel = anterior
+        self.ajustar()
 
     def elegir(self, app, sistema, roms, core):
         if not core:

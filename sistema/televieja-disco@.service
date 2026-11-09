@@ -1,0 +1,11 @@
+[Unit]
+Description=TeleVieja: disco USB %I
+# Cuando sacás el disco, systemd para este servicio y se desmonta solo.
+BindsTo=dev-%i.device
+After=dev-%i.device
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/televieja/bin/disco-usb.sh montar %I
+ExecStop=/opt/televieja/bin/disco-usb.sh desmontar %I
