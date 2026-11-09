@@ -31,7 +31,8 @@ Por debajo es un **Debian 12** mínimo (sin escritorio) que arranca directo en e
 | Netbook Conectar Igualdad (ver abajo cuál conviene) | El "cerebro" |
 | Conversor **VGA → AV (RCA)** | La netbook tiene salida VGA y la tele entrada RCA |
 | Cable **3,5 mm → RCA** | Sonido: de la salida de auriculares a la tele |
-| Joystick USB (tipo Super Nintendo) | Para manejar todo |
+| Joystick USB (tipo Super Nintendo) | Para jugar (y manejar todo) |
+| *Opcional:* control remoto USB "air mouse" | Para videos, canal e historietas desde el sillón |
 | Pendrive de 2 GB o más | Para instalar Debian (y después para cargar cosas) |
 
 ### ¿Qué netbook conviene?
@@ -191,6 +192,36 @@ En Windows se puede hacer lo mismo con **HandBrake**: preset *"Fast 480p30"* y e
 La primera vez que enchufás un joystick, TeleVieja te pide que **apretes cada botón**
 para aprenderlo. Se puede repetir en *Opciones → Configurar joystick*.
 
+### Control remoto
+
+Hay dos opciones y se pueden usar las dos a la vez, junto con el joystick:
+
+**Control remoto USB** (los de los TV Box: buscalos como *"air mouse"* o *"control remoto
+inalámbrico 2.4G"*, por ejemplo el G10). Enchufás el receptor USB en la netbook y listo:
+
+| Botón del control | Hace |
+|---|---|
+| Flechas y OK | Moverse y elegir |
+| Atrás | Volver (en un video: salir) |
+| Inicio (casita) | Vuelve al menú principal desde cualquier lado |
+| Play/Pausa | Pausa el video |
+| Siguiente / Anterior | Próximo capítulo o programa |
+| Volumen + / − / mute | Volumen |
+
+En el Canal Retro, **derecha** (o canal +) cambia de programa, como hacer zapping.
+Para los **juegos** sigue haciendo falta el joystick (el control tiene muy pocos botones).
+El "mouse" del control no hace nada (así no se sale de pantalla completa sin querer).
+
+**El celular como control** (gratis). La netbook tiene que estar en el mismo WiFi que el
+celu (configurá el WiFi al instalar Debian). En el menú andá a
+*Opciones → Control desde el celular*: aparece una dirección (por ejemplo
+`http://192.168.0.23:8080`) y un **código QR**. Escanealo con la cámara del celu y tenés
+un control con cruz, OK, volver, inicio, pausa, volumen y botones para los juegos
+(guardar, cargar y salir). Guardala en favoritos o agregala a la pantalla de inicio.
+
+> Cualquiera conectado a tu WiFi puede abrir esa página. Si no la querés, poné
+> `CONTROL_CELULAR=no` en las opciones.
+
 ### Videos y Radio
 
 A o START pausa · izquierda/derecha adelanta o atrasa 10 s · arriba/abajo cambia el volumen ·
@@ -235,6 +266,8 @@ En `~/.config/televieja/opciones.conf` (desde *Opciones → Salir a la terminal*
 | `TANDAS_POR_CORTE` | Cuántas publicidades entre programas |
 | `ARRANCAR_EN` | `menu` o `canal` (¡prendés y ya está pasando algo!) |
 | `RESOLUCION` | `640x480` (si el conversor no la toma: `800x600`) |
+| `CONTROL_CELULAR` | `si`/`no`: la página para manejar la tele desde el celu |
+| `PUERTO_CELULAR` | El puerto de esa página (`8080`) |
 
 Para volver al menú desde la terminal: `startx`.
 
@@ -251,6 +284,7 @@ Para volver al menú desde la terminal: `startx`.
 | No hay sonido | Revisá el cable de auriculares y el volumen de la tele. Desde la terminal: `alsamixer` |
 | El joystick no responde en los juegos | *Opciones → Configurar joystick* |
 | Un video anda trabado | Pasalo a 480p (ver arriba) |
+| El celu no abre la página del control | Que esté en el mismo WiFi que la netbook (no en datos móviles) y que la dirección sea la que muestra *Opciones → Control desde el celular* |
 | Un juego no abre | Revisá que la ROM sea de esa consola. Los errores quedan en `~/.cache/televieja/juego.log` |
 
 ---
@@ -263,7 +297,8 @@ Para volver al menú desde la terminal: `startx`.
 - `bin/pantalla.sh`: elige la salida (tele o netbook). `bin/importar-usb.sh`: copia desde el pendrive.
 - `bin/disco-usb.sh` + `sistema/99-televieja-usb.rules` + `sistema/televieja-disco@.service`:
   montan solos los discos USB (solo lectura) en `/media/televieja/`.
-- `pruebas/prueba_menu.py`: recorre el menú sin pantalla y guarda capturas.
+- `televieja/remoto.py`: la página del control para el celu (un servidor web chiquito, puerto 8080).
+- `pruebas/prueba_menu.py`: recorre el menú sin pantalla (también con el celu) y guarda capturas.
 
 Emuladores: nestopia (Family), snes9x2010 (Super Nintendo), Genesis Plus GX (Sega),
 Gambatte (Game Boy), gpsp/mGBA (GBA) y FBNeo (Neo Geo).

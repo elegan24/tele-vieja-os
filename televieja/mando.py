@@ -29,6 +29,14 @@ TECLAS = {
     pygame.K_PAGEUP: "l", pygame.K_PAGEDOWN: "r",
     pygame.K_TAB: "select", pygame.K_F1: "start",
 }
+# Controles remotos USB ("air mouse" de los TV Box): mandan estas teclas especiales.
+for _nombre, _boton in {
+    "K_AC_BACK": "b", "K_AC_HOME": "inicio", "K_HOME": "inicio", "K_MENU": "select",
+    "K_AUDIOPLAY": "start", "K_AUDIOSTOP": "b", "K_AUDIONEXT": "r", "K_AUDIOPREV": "l",
+    "K_VOLUMEUP": "vol+", "K_VOLUMEDOWN": "vol-", "K_MUTE": "mute", "K_AUDIOMUTE": "mute",
+}.items():
+    if hasattr(pygame, _nombre):
+        TECLAS[getattr(pygame, _nombre)] = _boton
 
 REPETIR_DESPUES = 0.35
 REPETIR_CADA = 0.08

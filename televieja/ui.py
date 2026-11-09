@@ -128,6 +128,10 @@ def icono(sup, nombre, x, y, color):
         pygame.draw.rect(sup, color, (x, y + 4, 22, 15), border_radius=3)
         pygame.draw.line(sup, OSCURO, (x + 3, y + 14), (x + 12, y + 14), 2)
         pygame.draw.circle(sup, OSCURO, (x + 17, y + 14), 2)
+    elif nombre == "celular":
+        pygame.draw.rect(sup, color, (x + 5, y, 13, 22), border_radius=3)
+        pygame.draw.rect(sup, OSCURO, (x + 7, y + 3, 9, 13))
+        pygame.draw.circle(sup, OSCURO, (x + 11, y + 19), 1)
     elif nombre == "flecha":
         pygame.draw.polygon(sup, color, [(x + 2, y + 11), (x + 12, y + 2), (x + 12, y + 20)])
         pygame.draw.rect(sup, color, (x + 11, y + 8, 10, 6))

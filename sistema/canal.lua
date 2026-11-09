@@ -61,3 +61,12 @@ mp.register_event("file-loaded", function()
 end)
 
 mp.add_periodic_timer(10, dibujar_logo)
+
+-- En el canal las flechas hacen "zapping" en vez de adelantar el video.
+local function siguiente() mp.command("playlist-next") end
+local function que_dan() mp.commandv("show-text", "${media-title}", "3000") end
+mp.add_forced_key_binding("RIGHT", "canal-siguiente", siguiente)
+mp.add_forced_key_binding("CHANNEL_UP", "canal-siguiente-ch", siguiente)
+mp.add_forced_key_binding("NEXT", "canal-siguiente-next", siguiente)
+mp.add_forced_key_binding("LEFT", "canal-que-dan", que_dan)
+mp.add_forced_key_binding("ENTER", "canal-que-dan-ok", que_dan)

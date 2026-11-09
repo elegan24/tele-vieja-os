@@ -103,12 +103,13 @@ def control_videos(boton):
         "up": ("add", "volume", "5"), "down": ("add", "volume", "-5"),
         "l": ("playlist-prev",), "r": ("playlist-next",),
         "x": ("cycle", "sub"), "y": ("cycle", "audio"),
+        "inicio": ("quit",),
     }
     if boton in acciones:
         mpv_comando(*acciones[boton])
         if boton in ("up", "down"):
             mpv_comando("show-text", "Volumen: ${volume}%")
-    return boton == "b"
+    return boton in ("b", "inicio")
 
 
 def control_canal(boton):
@@ -118,9 +119,26 @@ def control_canal(boton):
         "up": ("add", "volume", "5"), "down": ("add", "volume", "-5"),
         "a": ("show-text", "${media-title}", "3000"),
         "start": ("cycle", "pause"),
+        "l": ("show-text", "${media-title}", "3000"),
+        "inicio": ("quit",),
     }
     if boton in acciones:
         mpv_comando(*acciones[boton])
         if boton in ("up", "down"):
             mpv_comando("show-text", "Volumen: ${volume}%")
-    return boton == "b"
+    return boton in ("b", "inicio")
+
+
+def control_juego_remoto(boton):
+    """Botones del celular mientras se juega: le hablan a RetroArch por la red local."""
+    ordenes = {"b": "QUIT", "inicio": "QUIT", "start": "PAUSE_TOGGLE",
+               "r": "SAVE_STATE", "l": "LOAD_STATE", "select": "MENU_TOGGLE"}
+    orden = ordenes.get(boton)
+    if orden:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.sendto(orden.encode("ascii"), ("127.0.0.1", 55355))
+            s.close()
+        except OSError:
+            pass
+    return orden == "QUIT"

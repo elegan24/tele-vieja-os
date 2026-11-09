@@ -40,6 +40,8 @@ OPCIONES_POR_DEFECTO = {
     "ARRANCAR_EN": "menu",
     "SONIDOS_MENU": "si",
     "RESOLUCION": "640x480",
+    "CONTROL_CELULAR": "si",
+    "PUERTO_CELULAR": "8080",
 }
 
 # Consolas: la primera "core" que esté instalada es la que se usa.

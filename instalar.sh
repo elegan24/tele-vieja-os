@@ -45,7 +45,7 @@ apt-get update
 PAQUETES=(
     xserver-xorg-core xserver-xorg-input-libinput xinit x11-xserver-utils
     matchbox-window-manager libgl1-mesa-dri
-    python3 python3-pygame fonts-dejavu-core
+    python3 python3-pygame python3-qrcode fonts-dejavu-core
     mpv ffmpeg alsa-utils
     retroarch libretro-core-info
     libretro-nestopia libretro-snes9x libretro-genesisplusgx
@@ -119,6 +119,9 @@ ARRANCAR_EN=menu
 SONIDOS_MENU=si
 # Resolución para la tele. Si el conversor no la toma, probá 800x600
 RESOLUCION=640x480
+# Manejar la tele desde el celular (mismo WiFi): si/no y puerto
+CONTROL_CELULAR=si
+PUERTO_CELULAR=8080
 EOF
     chown "$USUARIO:$USUARIO" "$CASA/.config/televieja/opciones.conf"
 fi

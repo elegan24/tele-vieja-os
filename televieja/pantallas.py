@@ -33,6 +33,10 @@ class Pantalla:
     def al_volver(self, app):
         pass
 
+    def cerrar(self, app):
+        """Se llama cuando la pantalla se saca de golpe (botón Inicio)."""
+        pass
+
     def info(self):
         return ""
 
@@ -672,11 +676,14 @@ class Lector(Pantalla):
         elif boton == "start":
             self._avisar(app)
         elif boton == "b":
-            self.vivo = False
-            historietas.guardar_progreso(self.ruta, self.pagina)
+            self.cerrar(app)
             app.sonido.tocar("volver")
             app.sacar()
         app.sucio = True
+
+    def cerrar(self, app):
+        self.vivo = False
+        historietas.guardar_progreso(self.ruta, self.pagina)
 
     def actualizar(self, app, dt):
         if self.pagina in self.errores:
@@ -871,3 +878,68 @@ class Calibrar(Pantalla):
                 pygame.draw.circle(sup, color, (x0 + i * 18 + 9, y + 150), 6)
         if self.queja:
             ui.escribir(sup, f.chica, self.queja, ui.ROJO, (ANCHO // 2, y + 180), "midtop")
+
+
+# --- control desde el celular -------------------------------------------------
+class ControlCelular(Pantalla):
+    titulo = "Control con el celu"
+    ayuda = "B: volver"
+
+    def __init__(self):
+        from . import remoto
+        self.ip = remoto.direccion_ip()
+        self.qr = None
+        self.url = None
+
+    def _armar(self, app):
+        puerto = app.opciones.get("PUERTO_CELULAR", "8080")
+        if self.ip:
+            self.url = "http://%s:%s" % (self.ip, puerto)
+            try:
+                import qrcode
+                q = qrcode.QRCode(border=2, error_correction=qrcode.constants.ERROR_CORRECT_L)
+                q.add_data(self.url)
+                q.make(fit=True)
+                self.qr = q.get_matrix()
+            except ImportError:
+                self.qr = None
+
+    def accion(self, app, boton):
+        if boton in ("b", "a"):
+            app.sonido.tocar("volver")
+            app.sacar()
+
+    def dibujar(self, app, sup):
+        f = app.fuentes
+        if self.url is None:
+            self._armar(app)
+        y = MARGEN_Y + 64
+        if not app.servidor_celular:
+            texto = ("El control por celular está apagado o no pudo arrancar. "
+                     "Revisá CONTROL_CELULAR en las opciones.")
+        elif not self.url:
+            texto = ("La netbook no está conectada a ninguna red. "
+                     "Conectala al WiFi de tu casa para usar el celu como control.")
+        else:
+            texto = None
+        if texto:
+            for linea in ui.partir_lineas(f.chica, texto, ANCHO - 2 * MARGEN_X):
+                ui.escribir(sup, f.chica, linea, ui.BLANCO, (ANCHO // 2, y), "midtop")
+                y += 26
+            return
+        ui.escribir(sup, f.chica, "Con el celu en el mismo WiFi, escaneá el código", ui.BLANCO,
+                    (ANCHO // 2, y), "midtop")
+        ui.escribir(sup, f.chica, "o entrá a esta dirección:", ui.BLANCO, (ANCHO // 2, y + 24), "midtop")
+        ui.escribir(sup, f.item, self.url, ui.AMARILLO, (ANCHO // 2, y + 52), "midtop")
+        if self.qr:
+            n = len(self.qr)
+            modulo = max(2, 196 // n)
+            lado = n * modulo
+            x0 = (ANCHO - lado) // 2
+            y0 = y + 96
+            pygame.draw.rect(sup, (255, 255, 255), (x0 - 6, y0 - 6, lado + 12, lado + 12))
+            for fila, valores in enumerate(self.qr):
+                for col, negro in enumerate(valores):
+                    if negro:
+                        pygame.draw.rect(sup, (0, 0, 0),
+                                         (x0 + col * modulo, y0 + fila * modulo, modulo, modulo))

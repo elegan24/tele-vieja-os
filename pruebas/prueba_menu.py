@@ -84,11 +84,76 @@ def preparar_contenido():
     return cbz
 
 
+def apretar_tecla(app, tecla):
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=tecla, mod=0, unicode="", scancode=0))
+    app.vuelta(0.05)
+
+
+def celular(app, boton):
+    """Aprieta un botón en la página del celular (pedido HTTP de verdad)."""
+    import urllib.request
+    pedido = urllib.request.Request("http://127.0.0.1:18080/b/" + boton, method="POST")
+    with urllib.request.urlopen(pedido, timeout=5) as r:
+        assert r.status == 204
+    time.sleep(0.05)
+    app.vuelta(0.05)
+
+
+def probar_controles(app, paso, foto):
+    import urllib.request
+    from televieja import remoto
+    assert app.servidor_celular, "no arrancó el servidor del celular"
+    pagina = urllib.request.urlopen("http://127.0.0.1:18080/", timeout=5).read().decode()
+    assert "TeleVieja" in pagina and 'data-b="inicio"' in pagina
+    # botón inválido -> 404
+    try:
+        urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:18080/b/rm", method="POST"))
+        raise AssertionError("tenía que dar 404")
+    except urllib.error.HTTPError as e:
+        assert e.code == 404
+    principal = app.pila[0]
+    principal.sel = 0
+    celular(app, "down")
+    celular(app, "down")
+    assert principal.sel == 2, principal.sel           # Juegos
+    celular(app, "a")
+    assert app.actual.titulo == "Juegos", app.actual.titulo
+    celular(app, "a")                                   # Family
+    assert app.actual.titulo.startswith("Family")
+    celular(app, "inicio")                              # vuelve al menú de una
+    assert app.actual is principal and len(app.pila) == 1
+    # control remoto USB: tecla "Atrás" y "Inicio"
+    assert principal.sel == 2                           # se quedó en Juegos
+    principal.sel = 0
+    celular(app, "up")
+    celular(app, "up")                                  # va a "Opciones" (vuelve por abajo)
+    assert principal.items[principal.sel].texto == "Opciones", principal.items[principal.sel].texto
+    celular(app, "a")
+    apretar_tecla(app, pygame.K_AC_BACK)
+    assert app.actual is principal
+    # volumen desde el celu (sin amixer en la prueba: igual muestra el aviso)
+    celular(app, "vol+")
+    assert app.aviso.startswith("Volumen") or app.aviso == "Sin sonido", app.aviso
+    # pantalla con el código QR
+    app.poner(pantallas.ControlCelular())
+    pantalla = app.actual
+    if pantalla.ip is None:
+        pantalla.ip = "192.168.0.23"  # la prueba corre sin red de casa
+    foto("15-control-celular")
+    assert pantalla.url and pantalla.url.endswith(":18080"), pantalla.url
+    assert pantalla.qr, "falta el QR (pip install qrcode)"
+    paso("b")
+    assert remoto.EVENTO > pygame.USEREVENT
+
+
 def main():
     pygame.display.init()
     pygame.font.init()
     pygame.joystick.init()
     cbz = preparar_contenido()
+    os.makedirs(config.CONFIG_DIR, exist_ok=True)
+    with open(config.ARCHIVO_OPCIONES, "w") as f:
+        f.write("PUERTO_CELULAR=18080\n")
     # En esta prueba no hay emuladores instalados: hacemos de cuenta que sí.
     config.buscar_core = lambda nombres: "/falso/%s_libretro.so" % nombres[0]
     lanzados = []
@@ -169,6 +234,7 @@ def main():
     assert any("5678-EFGH" in it.texto for it in app.actual.items)
     foto("12b-radio-disco-nuevo")
     paso("b")
+    probar_controles(app, paso, foto)
     app.poner(pantallas.Calibrar("Encontré un joystick nuevo: vamos a configurarlo."))
     foto("13-calibrar")
     paso("b")  # (Calibrar ignora botones traducidos; sacamos a mano)

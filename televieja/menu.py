@@ -10,9 +10,9 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 
 import pygame  # noqa: E402
 
-from . import config, reproducir, ui  # noqa: E402
+from . import config, remoto, reproducir, ui  # noqa: E402
 from .mando import Mando  # noqa: E402
-from .pantallas import (Calibrar, Confirmar, Espera, Explorador, Item, Lista,  # noqa: E402
+from .pantallas import (Calibrar, Confirmar, ControlCelular, Espera, Explorador, Item, Lista,  # noqa: E402
                         ListaSistemas, Mensaje)
 from .ui import ANCHO, ALTO, MARGEN_X, MARGEN_Y  # noqa: E402
 
@@ -80,6 +80,13 @@ class App:
         self.aviso_hasta = 0.0
         self.discos = self._ids_discos()
         self.proximo_chequeo = 0.0
+        self.servidor_celular = None
+        if config.opcion_si(self.opciones, "CONTROL_CELULAR"):
+            try:
+                puerto = int(self.opciones.get("PUERTO_CELULAR", "8080"))
+            except ValueError:
+                puerto = 8080
+            self.servidor_celular = remoto.iniciar(puerto)
         self.poner(menu_principal(self))
 
     # --- pantalla física ---------------------------------------------------
@@ -191,8 +198,13 @@ class App:
         sup.blit(img, img.get_rect(center=r.center))
 
     # --- programas externos ----------------------------------------------------
-    def lanzar(self, orden, control=None, nombre_log="ultimo", combo_salida=False):
-        """Corre mpv o RetroArch y espera. Mientras tanto escucha el joystick."""
+    def lanzar(self, orden, control=None, nombre_log="ultimo", combo_salida=False,
+               control_remoto=None):
+        """Corre mpv o RetroArch y espera. Mientras tanto escucha el joystick y el celular.
+
+        control: qué hacer con cada botón. control_remoto: lo mismo pero solo para los
+        botones del celular (en los juegos el joystick ya lo maneja RetroArch).
+        """
         self.sonido.apagar()
         inicio = time.monotonic()
         try:
@@ -205,8 +217,14 @@ class App:
         pidio_salir = None
         while proc.poll() is None:
             for ev in pygame.event.get():
-                for boton in self.mando.traducir(ev):
-                    if control and control(boton):
+                if ev.type == remoto.EVENTO:
+                    botones, manejar = [ev.boton], control_remoto or control
+                else:
+                    botones, manejar = self.mando.traducir(ev), control
+                for boton in botones:
+                    if boton in ("vol+", "vol-", "mute"):
+                        reproducir.mpv_comando("show-text", self.volumen(boton))
+                    elif manejar and manejar(boton):
                         pidio_salir = pidio_salir or time.monotonic()
             if combo_salida and self.mando.esta_apretado("select") and self.mando.esta_apretado("start"):
                 combo_desde = combo_desde or time.monotonic()
@@ -241,7 +259,8 @@ class App:
 
     def jugar(self, core, rom):
         orden = reproducir.orden_juego(core, rom)
-        rc, duracion, error = self.lanzar(orden, None, "juego", combo_salida=True)
+        rc, duracion, error = self.lanzar(orden, None, "juego", combo_salida=True,
+                                          control_remoto=reproducir.control_juego_remoto)
         if rc is None:
             self.poner(Mensaje("Falta RetroArch", error))
         elif rc != 0 and duracion < 5:
@@ -255,6 +274,38 @@ class App:
                                "en TeleVieja/Canal/Tandas)."))
             return
         self.lanzar_mpv(reproducir.orden_canal(self.opciones, lista), reproducir.control_canal)
+
+    def volumen(self, boton):
+        """Volumen de la netbook (sirve para todo: menú, videos y juegos)."""
+        cambio = {"vol+": "5%+", "vol-": "5%-", "mute": "toggle"}[boton]
+        try:
+            subprocess.run(["amixer", "-q", "sset", "Master", cambio], timeout=3)
+            salida = subprocess.run(["amixer", "get", "Master"], capture_output=True,
+                                    text=True, timeout=3).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            return "Volumen"
+        if "[off]" in salida:
+            return "Sin sonido"
+        import re
+        m = re.search(r"\[(\d+)%\]", salida)
+        return "Volumen: %s%%" % m.group(1) if m else "Volumen"
+
+    def ir_al_inicio(self):
+        while len(self.pila) > 1:
+            self.pila.pop().cerrar(self)
+        self.actual.al_volver(self)
+        self.sonido.tocar("volver")
+        self.sucio = True
+
+    def boton_global(self, boton):
+        """Botones que hacen lo mismo en cualquier pantalla. Devuelve True si lo usó."""
+        if boton in ("vol+", "vol-", "mute"):
+            self.avisar(self.volumen(boton), 1.5)
+            return True
+        if boton == "inicio":
+            self.ir_al_inicio()
+            return True
+        return False
 
     def cambiar_pantalla(self):
         script = os.path.join(config.BIN_DIR, "pantalla.sh")
@@ -276,39 +327,48 @@ class App:
         if self.opciones.get("ARRANCAR_EN", "menu").lower() == "canal":
             self.canal()
         while self.corriendo:
-            dt = reloj.tick(FPS) / 1000.0
-            for ev in pygame.event.get():
-                if ev.type == pygame.QUIT:
-                    self.corriendo = False
-                if ev.type in (pygame.VIDEOEXPOSE, pygame.WINDOWEXPOSED if hasattr(pygame, "WINDOWEXPOSED") else -1):
-                    self.sucio = True
-                botones = self.mando.traducir(ev)
-                if ev.type == pygame.JOYDEVICEADDED:
-                    self._joystick_nuevo(ev.device_index)
-                if self.actual.crudo:
-                    self.actual.evento(self, ev)
-                    continue
-                for b in botones:
-                    self.actual.accion(self, b)
-            if not self.actual.crudo:
-                for b in self.mando.repeticiones():
-                    self.actual.accion(self, b)
-            self.actual.actualizar(self, dt)
-            self.revisar_discos()
-            if self.aviso and time.monotonic() > self.aviso_hasta:
-                self.aviso = ""
-                self.sucio = True
-            minuto = time.strftime("%H:%M")
-            if minuto != self.ultimo_minuto:
-                self.ultimo_minuto = minuto
-                self.sucio = True
-            if self.sucio:
-                self.sucio = False
-                self._dibujar(self.actual, self.lienzo)
-                if self.aviso:
-                    self._dibujar_aviso(self.lienzo)
-                self.mostrar()
+            self.vuelta(reloj.tick(FPS) / 1000.0)
         return self.codigo_salida
+
+    def vuelta(self, dt):
+        """Una vuelta del bucle: leer botones, actualizar y dibujar."""
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT:
+                self.corriendo = False
+            if ev.type in (pygame.VIDEOEXPOSE, pygame.WINDOWEXPOSED if hasattr(pygame, "WINDOWEXPOSED") else -1):
+                self.sucio = True
+            if ev.type == remoto.EVENTO:
+                botones = [ev.boton]
+                if self.actual.crudo:
+                    continue
+            else:
+                botones = self.mando.traducir(ev)
+            if ev.type == pygame.JOYDEVICEADDED:
+                self._joystick_nuevo(ev.device_index)
+            if self.actual.crudo:
+                self.actual.evento(self, ev)
+                continue
+            for b in botones:
+                if not self.boton_global(b):
+                    self.actual.accion(self, b)
+        if not self.actual.crudo:
+            for b in self.mando.repeticiones():
+                self.actual.accion(self, b)
+        self.actual.actualizar(self, dt)
+        self.revisar_discos()
+        if self.aviso and time.monotonic() > self.aviso_hasta:
+            self.aviso = ""
+            self.sucio = True
+        minuto = time.strftime("%H:%M")
+        if minuto != self.ultimo_minuto:
+            self.ultimo_minuto = minuto
+            self.sucio = True
+        if self.sucio:
+            self.sucio = False
+            self._dibujar(self.actual, self.lienzo)
+            if self.aviso:
+                self._dibujar_aviso(self.lienzo)
+            self.mostrar()
 
     def _joystick_nuevo(self, indice):
         try:
@@ -326,6 +386,7 @@ def menu_principal(app):
 
     opciones = Lista("Opciones", [
         Item("Configurar joystick", ir(lambda: Calibrar()), icono="joystick"),
+        Item("Control desde el celular", ir(ControlCelular), icono="celular"),
         Item("Cambiar pantalla (tele / netbook)", lambda app: app.cambiar_pantalla(), icono="tele"),
         Item("Reiniciar", lambda app: app.poner(Confirmar("¿Reiniciar?", lambda a: a.sistema("reboot"))),
              icono="flecha"),
