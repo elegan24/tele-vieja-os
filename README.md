@@ -66,9 +66,11 @@ Mirá la etiqueta de abajo o, al prenderla, entrá al BIOS para ver el procesado
 
 1. **¿32 o 64 bits?** Atom N450/N455/N570 y Celeron → **64 bits (amd64)**.
    Si es un Atom N270/N280 → 32 bits (i386). Ante la duda, usá i386, que anda en todas.
-2. Bajá el instalador "netinst" de Debian 12 desde **debian.org**:
-   - 64 bits: `debian-12.x.x-amd64-netinst.iso`
-   - 32 bits: `debian-12.x.x-i386-netinst.iso`
+2. Bajá el instalador "netinst" de **Debian 12** (ojo: la página principal de debian.org te
+   ofrece la 13; TeleVieja está hecha y probada para la 12, que tiene soporte hasta 2028):
+   - 64 bits: <https://cdimage.debian.org/cdimage/archive/12.15.0/amd64/iso-cd/debian-12.15.0-amd64-netinst.iso>
+   - 32 bits: <https://cdimage.debian.org/cdimage/archive/12.15.0/i386/iso-cd/debian-12.15.0-i386-netinst.iso>
+   (si hay una 12.x más nueva en <https://cdimage.debian.org/cdimage/archive/>, sirve igual)
 3. Grabalo en el pendrive con **Rufus** (Windows) o **balenaEtcher**.
 4. Enchufá el pendrive y prendé la netbook apretando **F12** (en algunas es F11, F10 o Esc)
    para elegir arrancar desde USB.
