@@ -15,8 +15,20 @@ def ruta_log(nombre):
     return os.path.join(LOG_DIR, nombre + ".log")
 
 
+# En 720x480 / 720x576 (HDMI a la tele) cada pixel no es cuadrado: la tele lo muestra en 4:3.
+ASPECTO_PIXEL = {"720x480": "0.8889", "720x576": "1.0667"}
+
+
 def mpv_base():
-    return ["mpv", "--fullscreen", "--input-ipc-server=" + SOCKET_MPV]
+    orden = ["mpv", "--fullscreen", "--input-ipc-server=" + SOCKET_MPV]
+    try:
+        with open("/tmp/televieja-resolucion") as f:
+            res = f.read().strip()
+    except OSError:
+        res = ""
+    if res in ASPECTO_PIXEL:
+        orden.append("--monitorpixelaspect=" + ASPECTO_PIXEL[res])
+    return orden
 
 
 def orden_videos(archivos):

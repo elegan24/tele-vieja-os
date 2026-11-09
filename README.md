@@ -102,6 +102,45 @@ Si hay algo conectado en la salida VGA, la imagen sale por la tele; si no, por l
 
 ---
 
+### Pasar el disco a una netbook más potente
+
+TeleVieja está pensada para que, si conseguís una netbook mejor (por ejemplo una Juana
+Manso), le pases el disco y siga andando. Ya viene preparada para eso:
+
+- Trae el **firmware** de las placas WiFi, de sonido y de video más comunes (Intel, Realtek,
+  Atheros, Broadcom).
+- El **WiFi** queda guardado para cualquier placa, no solo la de esta netbook.
+- La **salida a la tele** sirve por VGA (netbooks viejas) o por **HDMI** (las nuevas). Por
+  HDMI usa 720x480, que es lo que suelen pedir los conversores HDMI → AV.
+- La **Nintendo 64** y lo demás se activan solos si la netbook nueva puede.
+
+Falta un solo paso, porque las netbooks viejas y las nuevas **arrancan distinto** (BIOS y
+UEFI). **Antes de sacar el disco**, en la netbook vieja y con internet:
+
+```bash
+cd tele-vieja-os
+sudo ./herramientas/preparar-cambio-de-netbook.sh
+```
+
+Le agrega al disco el arranque para netbooks nuevas, sin sacar el de las viejas: después
+arranca en las dos. Para hacer lugar cambia la partición de intercambio (swap) por un
+archivo; **tus cosas no se tocan**. Te pide que escribas `SI` para confirmar, guarda una copia
+de cómo estaba el disco y, si el disco no tiene la forma de siempre, no cambia nada.
+
+En la netbook nueva:
+1. Poné el disco y prendela. Si no arranca sola, entrá al menú de arranque (F12, F11, F10 o
+   Esc) y elegí el disco. Si dice algo de *Secure Boot*, desactivalo en el BIOS.
+2. Corré `sudo ./instalar.sh` de nuevo, con internet, para que se termine de adaptar.
+
+> Ojo: muchas netbooks nuevas traen la memoria **soldada** (eMMC) en lugar de un disco que se
+> pueda sacar. Antes de comprar, fijate que tenga lugar para un disco SATA de 2,5" o M.2.
+> Si no tiene, instalá TeleVieja en ella con `instalar.sh` y enchufale tu disco externo USB
+> con tus cosas: queda igual.
+
+**Mejora barata:** si le ponés un disco **SSD** en vez del disco común, la netbook prende y
+carga todo mucho más rápido. No hace que los juegos vayan más rápido (eso depende del
+procesador), pero se nota un montón en el uso.
+
 ## 4. Cargar tus cosas
 
 Todo va en la carpeta **`TeleVieja`** de la netbook:
@@ -383,6 +422,7 @@ En `~/.config/televieja/opciones.conf` (desde *Opciones → Salir a la terminal*
 | `TANDAS_POR_CORTE` | Cuántas publicidades entre programas |
 | `ARRANCAR_EN` | `menu` o `canal` (¡prendés y ya está pasando algo!) |
 | `RESOLUCION` | `640x480` (si el conversor no la toma: `800x600`) |
+| `RESOLUCION_HDMI` | `720x480` para conversores HDMI → AV (o `720x576`, o `640x480`) |
 | `CONTROL_CELULAR` | `si`/`no`: la página para manejar la tele desde el celu |
 | `PUERTO_CELULAR` | El puerto de esa página (`8080`) |
 | `N64` | `auto` (aparece si la placa de video puede), `si` o `no` |
@@ -416,6 +456,8 @@ Para volver al menú desde la terminal: `startx`.
 - `televieja/`: el menú (Python + pygame), dibujado para 640x480 con márgenes para la tele de tubo.
 - `sistema/`: configuración de mpv, RetroArch, el script del Canal Retro (`canal.lua`) y el arranque de X.
 - `bin/pantalla.sh`: elige la salida (tele o netbook). `bin/importar-usb.sh`: copia desde el pendrive.
+- `herramientas/preparar-cambio-de-netbook.sh`: agrega el arranque UEFI (con Secure Boot) al
+  disco sin sacar el de BIOS. `bin/wifi-portatil.sh`: guarda el WiFi en NetworkManager.
 - `bin/disco-usb.sh` + `sistema/99-televieja-usb.rules` + `sistema/televieja-disco@.service`:
   montan solos los discos USB (solo lectura) en `/media/televieja/`.
 - `televieja/remoto.py`: la página del control para el celu (un servidor web chiquito, puerto 8080)

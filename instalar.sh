@@ -41,6 +41,11 @@ esac
 
 verde "==> 1/7 Instalando programas (puede tardar bastante)..."
 export DEBIAN_FRONTEND=noninteractive
+# Firmware de placas WiFi, sonido y video de otras marcas (para poder pasar el disco
+# a otra netbook): en Debian 12 está en "non-free-firmware".
+if [ -f /etc/apt/sources.list ] && ! grep -rqs 'non-free-firmware' /etc/apt/sources.list /etc/apt/sources.list.d/; then
+    sed -i -E '/^deb(-src)? .* main/ s/$/ non-free-firmware/' /etc/apt/sources.list
+fi
 apt-get update
 PAQUETES=(
     xserver-xorg-core xserver-xorg-input-libinput xinit x11-xserver-utils mesa-utils
@@ -52,6 +57,9 @@ PAQUETES=(
     libretro-gambatte libretro-mgba
     poppler-utils libarchive-tools
     rsync ntfs-3g exfatprogs curl unzip sudo
+    network-manager
+    firmware-misc-nonfree firmware-realtek firmware-iwlwifi firmware-atheros
+    firmware-brcm80211 firmware-sof-signed firmware-intel-sound
 )
 # Placa de video Intel vieja (GMA 3150 y similares): su driver trae Xv, que es lo más liviano.
 for d in /sys/bus/pci/devices/*; do
@@ -147,6 +155,8 @@ ARRANCAR_EN=menu
 SONIDOS_MENU=si
 # Resolución para la tele. Si el conversor no la toma, probá 800x600
 RESOLUCION=640x480
+# Resolución por HDMI (netbooks nuevas con conversor HDMI -> AV)
+RESOLUCION_HDMI=720x480
 # Manejar la tele desde el celular (mismo WiFi): si/no y puerto
 CONTROL_CELULAR=si
 PUERTO_CELULAR=8080
@@ -221,6 +231,9 @@ systemctl daemon-reload
 udevadm control --reload-rules 2>/dev/null || true
 udevadm trigger --subsystem-match=block --action=add 2>/dev/null || true
 udevadm trigger --subsystem-match=misc --sysname-match=uinput --action=add 2>/dev/null || true
+
+# WiFi para cualquier netbook (por si después pasás el disco a otra)
+"$APP/bin/wifi-portatil.sh" || true
 
 verde "==> 7/7 Arranque silencioso..."
 if [ -f /etc/default/grub ]; then

@@ -113,6 +113,9 @@ class App:
         destino = self.pantalla.get_size()
         if destino == (ANCHO, ALTO):
             self.pantalla.blit(self.lienzo, (0, 0))
+        elif destino in ((720, 480), (720, 576)):
+            # Resoluciones de tele (por HDMI): la tele las muestra en 4:3, así que se estira todo.
+            self.pantalla.blit(pygame.transform.scale(self.lienzo, destino), (0, 0))
         else:  # pantalla de la netbook: agrandamos manteniendo 4:3
             escala = min(destino[0] / ANCHO, destino[1] / ALTO)
             tam = (int(ANCHO * escala), int(ALTO * escala))
