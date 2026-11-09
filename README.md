@@ -87,7 +87,7 @@ En la netbook, con internet:
 
 ```bash
 sudo apt install -y git
-git clone https://github.com/USUARIO/tele-vieja-os.git
+git clone https://github.com/elegan24/tele-vieja-os.git
 cd tele-vieja-os
 sudo ./instalar.sh
 sudo reboot
