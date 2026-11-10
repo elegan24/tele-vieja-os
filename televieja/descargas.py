@@ -75,6 +75,16 @@ def hay_internet():
     return False
 
 
+def legible(mensaje):
+    """Los errores técnicos de conexión, en criollo."""
+    if any(x in mensaje for x in ("HTTPSConnectionPool", "ConnectionError", "Connection reset",
+                                  "Connection aborted", "timed out", "Max retries",
+                                  "Name or service", "Temporary failure", "urlopen error",
+                                  "NameResolution", "Network is unreachable")):
+        return "Se cortó la conexión a internet."
+    return mensaje
+
+
 def clasificar(textos):
     """Qué tipo de problema hubo: cuota, permiso, disco o red (lo demás se trata como red)."""
     junto = " ".join(textos).lower()
@@ -328,6 +338,7 @@ class Gestor:
 
     def _fallo(self, trabajo, carpeta):
         """Algo no se bajó: según qué pasó, se reintenta más tarde o se da por terminada."""
+        trabajo.mensaje = legible(trabajo.mensaje or "")
         tipo = clasificar([trabajo.mensaje] + trabajo.avisos)
         esperas = self.esperas.get(tipo)
         if esperas and trabajo.intentos < len(esperas):
@@ -420,7 +431,7 @@ class Gestor:
             try:
                 return self._bajar_directo_una_vez(trabajo, carpeta)
             except Exception as e:  # noqa: BLE001
-                trabajo.mensaje = str(e)[:200]
+                trabajo.mensaje = legible(str(e)[:200])
                 if trabajo.estado == "cancelado" or clasificar([trabajo.mensaje]) == "disco":
                     return False
                 time.sleep(5 * (intento + 1))

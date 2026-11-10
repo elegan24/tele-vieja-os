@@ -591,8 +591,12 @@ def actualizar(app):
         rc, lineas = resultado
         ultima = lineas[-1] if lineas else ""
         if rc == 0 and ultima == "LISTO":
-            app.poner(Mensaje("¡Actualizada!", "TeleVieja se actualizó. Se reinicia el menú...",
-                              lambda a: a.reiniciar_menu()))
+            # Algunas cosas (como el arreglo del WiFi) recién andan después de reiniciar.
+            confirmar = Confirmar("¡Actualizada! ¿Reiniciar la netbook? (recomendado)",
+                                  lambda a: a.sistema("reboot"))
+            confirmar.opcion = 0  # "Sí" ya elegido
+            confirmar.al_no = lambda a: a.reiniciar_menu()
+            app.poner(confirmar)
         elif rc == 0:
             app.poner(Mensaje("Todo al día", ultima or "Ya tenés la última versión."))
         else:

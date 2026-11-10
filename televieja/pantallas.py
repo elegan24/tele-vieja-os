@@ -240,6 +240,7 @@ class Confirmar(Pantalla):
         self.pregunta = pregunta
         self.si = si
         self.opcion = 1  # empieza en "No"
+        self.al_no = None
 
     def accion(self, app, boton):
         if boton in ("left", "right", "up", "down"):
@@ -250,19 +251,25 @@ class Confirmar(Pantalla):
             app.sacar()
             if self.opcion == 0:
                 self.si(app)
+            elif self.al_no:
+                self.al_no(app)
         elif boton == "b":
             app.sacar()
+            if self.al_no:
+                self.al_no(app)
 
     def dibujar(self, app, sup):
         app.dibujar_debajo(self, sup)
         f = app.fuentes
-        r = pygame.Rect(0, 0, 420, 150)
+        lineas = ui.partir_lineas(f.item, self.pregunta, 440)
+        r = pygame.Rect(0, 0, 480, 120 + 32 * len(lineas))
         r.center = (ANCHO // 2, ALTO // 2)
         ui.caja(sup, r)
-        ui.escribir(sup, f.item, self.pregunta, ui.BLANCO, (r.centerx, r.y + 22), "midtop")
+        for n, linea in enumerate(lineas):
+            ui.escribir(sup, f.item, linea, ui.BLANCO, (r.centerx, r.y + 20 + 32 * n), "midtop")
         for i, texto in enumerate(("Sí", "No")):
             b = pygame.Rect(0, 0, 120, 44)
-            b.center = (r.centerx + (-80 if i == 0 else 80), r.y + 105)
+            b.center = (r.centerx + (-80 if i == 0 else 80), r.bottom - 40)
             if i == self.opcion:
                 pygame.draw.rect(sup, ui.AMARILLO, b, border_radius=8)
             ui.escribir(sup, f.item, texto, ui.ELEGIDO if i == self.opcion else ui.BLANCO,

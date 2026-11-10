@@ -41,6 +41,10 @@ def traducir(mensaje):
                 "\"Cualquier persona con el enlace\".")
     if "No space left" in mensaje:
         return "Se llenó el disco."
+    if any(x in mensaje for x in ("HTTPSConnectionPool", "ConnectionError", "Connection reset",
+                                  "Connection aborted", "timed out", "Max retries",
+                                  "Name or service", "Temporary failure", "NameResolution")):
+        return "Se cortó la conexión a internet."
     return mensaje.strip().splitlines()[-1][:200] if mensaje.strip() else "Error desconocido"
 
 
