@@ -413,13 +413,18 @@ def probar_mega(app, paso, foto):
 def probar_wifi(app, paso, foto):
     """Opciones > WiFi con redes de mentira (acá no hay NetworkManager)."""
     llamadas = []
+    vacio = {"si": False}
 
     def wifi_falso(app_, *args, entrada=None):
         llamadas.append((args, entrada))
         if args[0] == "listar":
-            return [{"nombre": "Casa de Roman", "senal": 30, "segura": True, "conectada": False},
-                    {"nombre": "Bar El Tubo", "senal": 80, "segura": True, "conectada": False},
-                    {"nombre": "Plaza Libre", "senal": 45, "segura": False, "conectada": False}]
+            if vacio["si"]:
+                return {"redes": [], "detalle": "Placa wlp7s0: unavailable"}
+            return {"redes": [
+                {"nombre": "Casa de Roman", "senal": 30, "segura": True, "conectada": False},
+                {"nombre": "Bar El Tubo", "senal": 80, "segura": True, "conectada": False},
+                {"nombre": "Plaza Libre", "senal": 45, "segura": False, "conectada": False}],
+                "detalle": ""}
         return {"ok": entrada == "Mate&Facturas 2\n", "mensaje": "La contraseña no es correcta."}
 
     pantallas._wifi = wifi_falso
@@ -468,6 +473,18 @@ def probar_wifi(app, paso, foto):
     esperar_pantalla(pantallas.Mensaje)
     assert "contraseña" in app.actual.texto, app.actual.texto
     paso("a")
+    while len(app.pila) > 1:
+        app.sacar()
+    # sin redes: explica lo de 2,4 GHz y muestra qué le pasa a la placa
+    vacio["si"] = True
+    pantallas.abrir_wifi(app)
+    esperar_pantalla(pantallas.RedesWifi)
+    assert [it.texto for it in app.actual.items] == ["Buscar de nuevo", "No encontré redes cerca",
+                                                     "¿Por qué?"]
+    app.actual.sel = 2
+    paso("a")
+    assert "2,4 GHz" in app.actual.texto and "unavailable" in app.actual.texto, app.actual.texto
+    foto("25-wifi-por-que")
     while len(app.pila) > 1:
         app.sacar()
 

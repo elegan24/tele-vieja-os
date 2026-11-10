@@ -1321,16 +1321,18 @@ def _wifi(app, *args, entrada=None):
 
 
 def abrir_wifi(app):
-    def listo(app, redes, error):
+    def listo(app, datos, error):
         if error:
             app.poner(Mensaje("WiFi", "No pude buscar redes: %s" % error))
+        elif isinstance(datos, list):  # (por si quedó el ayudante de antes)
+            app.poner(RedesWifi(datos))
         else:
-            app.poner(RedesWifi(redes))
+            app.poner(RedesWifi(datos.get("redes", []), datos.get("detalle", "")))
     app.poner(Espera("WiFi", "Buscando redes...", lambda: _wifi(app, "listar"), listo))
 
 
 class RedesWifi(Lista):
-    def __init__(self, redes):
+    def __init__(self, redes, detalle=""):
         super().__init__("WiFi", ayuda="A: conectar  B: volver")
         self.items = [Item("Buscar de nuevo", abrir_otra_vez, icono="flecha")]
         for r in redes:
@@ -1340,6 +1342,13 @@ class RedesWifi(Lista):
                                    extra=extra))
         if not redes:
             self.items.append(Item("No encontré redes cerca", apagado=True))
+            texto = ("Esta placa WiFi solo ve redes de 2,4 GHz: si compartís internet desde el "
+                     "celu, ponelo en 2,4 GHz (en la configuración de la Zona Wi-Fi, \"Banda\"). "
+                     "O usá el anclaje USB con el cable.")
+            if detalle:
+                texto += "\n\n" + detalle
+            self.items.append(Item("¿Por qué?", lambda app: app.poner(Mensaje("WiFi", texto)),
+                                   icono="engranaje"))
 
 
 def abrir_otra_vez(app):

@@ -100,11 +100,53 @@ def liberar():
         time.sleep(3)
 
 
+def prender_radio():
+    """Por si el WiFi está apagado (por software o por la tecla de la netbook)."""
+    nmcli("radio", "wifi", "on")
+    for tipo in glob.glob("/sys/class/rfkill/rfkill*/type"):
+        try:
+            if open(tipo).read().strip() == "wlan":
+                with open(os.path.join(os.path.dirname(tipo), "soft"), "w") as f:
+                    f.write("0")
+        except OSError:
+            pass
+
+
+def detalle():
+    """Qué le pasa a la placa WiFi, para mostrarlo en la tele si no aparece ninguna red."""
+    partes = []
+    estados = {}
+    for linea in nmcli("-t", "-f", "DEVICE,TYPE,STATE", "device").stdout.splitlines():
+        campos = partir_terse(linea)
+        if len(campos) >= 3 and campos[1] == "wifi":
+            estados[campos[0]] = campos[2]
+    if not placas():
+        partes.append("Linux no ve ninguna placa WiFi")
+    for placa in placas():
+        partes.append("Placa %s: %s" % (placa, estados.get(placa, "NetworkManager no la ve")))
+    for tipo in glob.glob("/sys/class/rfkill/rfkill*/type"):
+        carpeta = os.path.dirname(tipo)
+        try:
+            if open(tipo).read().strip() == "wlan" and open(os.path.join(carpeta, "hard")).read().strip() == "1":
+                partes.append("El WiFi está apagado con la tecla o el botón de la netbook")
+        except OSError:
+            pass
+    radio = nmcli("radio", "wifi").stdout.strip()
+    if radio and radio != "enabled":
+        partes.append("Radio WiFi: %s" % radio)
+    return ". ".join(partes)
+
+
 def listar():
     liberar()
-    nmcli("device", "wifi", "rescan", tiempo=20)
-    time.sleep(2)
-    salida = nmcli("-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "device", "wifi", "list").stdout
+    prender_radio()
+    salida = ""
+    for _ in range(4):  # la primera búsqueda a veces vuelve vacía: se insiste un poco
+        salida = nmcli("-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "device", "wifi", "list",
+                       "--rescan", "yes", tiempo=30).stdout
+        if salida.strip():
+            break
+        time.sleep(3)
     redes = {}
     for linea in salida.splitlines():
         campos = partir_terse(linea)
@@ -121,7 +163,7 @@ def listar():
                              "segura": seguridad not in ("", "--"),
                              "conectada": en_uso or bool(vieja and vieja["conectada"])}
     lista = sorted(redes.values(), key=lambda r: (not r["conectada"], -r["senal"]))
-    print(json.dumps(lista, ensure_ascii=False))
+    print(json.dumps({"redes": lista, "detalle": "" if lista else detalle()}, ensure_ascii=False))
 
 
 def conectar(nombre):
