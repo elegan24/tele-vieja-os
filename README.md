@@ -506,6 +506,8 @@ la última versión, te lo dice. El registro queda en `/var/log/televieja-actual
 - **Favoritos y Últimos jugados:** en una lista de juegos apretá **X** para marcar un favorito
   (★). Arriba de todo en *Juegos* aparecen **Favoritos** y **Últimos jugados**, con juegos de
   todas las consolas juntos.
+- **Batería:** arriba, al lado de la hora, el porcentaje con una pilita (con un rayito si está
+  cargando y en rojo si queda poca). Si no está enchufada, avisa al 15% y al 5%.
 - **WiFi sin cortes:** el instalador apaga el "ahorro de energía" de la placa WiFi, que en
   algunas (como la Realtek RTL8191SE de las Conectar Igualdad) hace que se corte sola.
 

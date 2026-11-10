@@ -113,6 +113,9 @@ class App:
         self.proximo_chequeo = 0.0
         self.servidor_celular = None
         self.ultima_actividad = time.monotonic()
+        self.bateria = None
+        self.bateria_avisada = 100
+        self.proxima_bateria = 0.0
         if config.opcion_si(self.opciones, "CONTROL_CELULAR"):
             try:
                 puerto = int(self.opciones.get("PUERTO_CELULAR", "8080"))
@@ -199,10 +202,11 @@ class App:
         for i, color in enumerate(ui.FRANJAS):
             pygame.draw.rect(sup, color, (MARGEN_X, MARGEN_Y + 4 + i * alto_franja, 26,
                                           max(2, alto_franja - 2)))
-        titulo = ui.recortar(f.titulo, p.titulo or "", ANCHO - 2 * MARGEN_X - 130, f.puntos)
+        reloj = ui.escribir(sup, f.item, time.strftime("%H:%M"), ui.BLANCO,
+                            (ANCHO - MARGEN_X, MARGEN_Y + 4), "topright")
+        izquierda_reloj = self._dibujar_bateria(sup, reloj.left - 12, reloj.centery)
+        titulo = ui.recortar(f.titulo, p.titulo or "", izquierda_reloj - MARGEN_X - 50, f.puntos)
         ui.escribir(sup, f.titulo, titulo, ui.AMARILLO, (MARGEN_X + 38, MARGEN_Y))
-        ui.escribir(sup, f.item, time.strftime("%H:%M"), ui.BLANCO, (ANCHO - MARGEN_X, MARGEN_Y + 4),
-                    "topright")
         pygame.draw.line(sup, ui.GRIS_OSCURO, (MARGEN_X, MARGEN_Y + 48), (ANCHO - MARGEN_X, MARGEN_Y + 48), 2)
         pie = ALTO - MARGEN_Y - 22
         ui.escribir(sup, f.chica, ui.recortar(f.chica, p.ayuda, ANCHO - 2 * MARGEN_X - 90, f.puntos),
@@ -245,6 +249,53 @@ class App:
         if isinstance(self.actual, (Protector, Lector, Calibrar, Espera)):
             return  # leyendo una historieta, configurando o esperando algo: no molestar
         self.poner(Protector(self.opciones.get("NOMBRE_CANAL", "TELE VIEJA")))
+
+    def _dibujar_bateria(self, sup, derecha, centro_y):
+        """Pila con el nivel y el porcentaje, a la izquierda de la hora. Devuelve dónde termina."""
+        b = self.bateria
+        if not b:
+            return derecha
+        f = self.fuentes
+        baja = b["porcentaje"] <= 20 and not b["enchufada"]
+        color = ui.ROJO if baja else ui.BLANCO
+        texto = "%d%%" % b["porcentaje"]
+        rect = ui.escribir(sup, f.chica, texto, color, (derecha, centro_y), "midright")
+        pila = pygame.Rect(0, 0, 28, 14)
+        pila.midright = (rect.left - 6, centro_y)
+        pygame.draw.rect(sup, color, pila, 2, border_radius=2)
+        pygame.draw.rect(sup, color, (pila.right, pila.centery - 3, 3, 6))
+        lleno = max(1, (pila.width - 6) * b["porcentaje"] // 100)
+        pygame.draw.rect(sup, color, (pila.x + 3, pila.y + 3, lleno, pila.height - 6))
+        if b["cargando"]:  # un rayito
+            cx, cy = pila.center
+            pygame.draw.polygon(sup, ui.AMARILLO if not baja else color, [
+                (cx + 2, cy - 9), (cx - 5, cy + 1), (cx, cy + 1), (cx - 2, cy + 9),
+                (cx + 5, cy - 1), (cx, cy - 1)])
+            pygame.draw.polygon(sup, ui.OSCURO, [
+                (cx + 2, cy - 9), (cx - 5, cy + 1), (cx, cy + 1), (cx - 2, cy + 9),
+                (cx + 5, cy - 1), (cx, cy - 1)], 1)
+        return pila.left
+
+    def revisar_bateria(self):
+        """Cada 30 segundos mira la batería; avisa al 15% y al 5% si no está enchufada."""
+        ahora = time.monotonic()
+        if ahora < self.proxima_bateria:
+            return
+        self.proxima_bateria = ahora + 30
+        from . import bateria
+        nueva = bateria.leer()
+        if nueva != self.bateria:
+            self.bateria = nueva
+            self.sucio = True
+        if not nueva or nueva["enchufada"]:
+            self.bateria_avisada = 100
+            return
+        for limite, texto in ((5, "¡Batería al %d%%! Enchufá la netbook o se apaga."),
+                              (15, "Batería baja: %d%%. Enchufá la netbook.")):
+            if nueva["porcentaje"] <= limite < self.bateria_avisada:
+                self.bateria_avisada = limite
+                self.avisar(texto % nueva["porcentaje"], 6.0)
+                break
 
     def avisar(self, texto, segundos=3.0):
         self.aviso = texto
@@ -521,6 +572,7 @@ class App:
                 self.actual.accion(self, b)
         self.actual.actualizar(self, dt)
         self.revisar_protector()
+        self.revisar_bateria()
         self.revisar_discos()
         if remoto.gestor:
             novedades = remoto.gestor.tomar_novedades()
