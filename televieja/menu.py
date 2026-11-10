@@ -13,7 +13,8 @@ import pygame  # noqa: E402
 from . import config, remoto, reproducir, ui  # noqa: E402
 from . import mando as mando_mod  # noqa: E402
 from .mando import Mando  # noqa: E402
-from .pantallas import (Calibrar, Confirmar, ControlCelular, Espera, Explorador, Item, Lista,  # noqa: E402
+from .pantallas import (Calibrar, Confirmar, ControlCelular, Descargas, Espera, Explorador,  # noqa: E402
+                        Item, Lista,
                         ListaSistemas, Mensaje)
 from .ui import ANCHO, ALTO, MARGEN_X, MARGEN_Y  # noqa: E402
 
@@ -92,6 +93,9 @@ class App:
             except ValueError:
                 puerto = 8080
             self.servidor_celular = remoto.iniciar(puerto)
+            if self.servidor_celular:
+                from . import descargas
+                remoto.gestor = descargas.Gestor()
         self.poner(menu_principal(self))
 
     # --- pantalla física ---------------------------------------------------
@@ -418,6 +422,11 @@ class App:
                 self.actual.accion(self, b)
         self.actual.actualizar(self, dt)
         self.revisar_discos()
+        if remoto.gestor:
+            novedades = remoto.gestor.tomar_novedades()
+            if novedades:
+                self.avisar(novedades[-1], 5.0)
+                self.actual.al_volver(self)  # que aparezca lo nuevo en la lista
         if self.aviso and time.monotonic() > self.aviso_hasta:
             self.aviso = ""
             self.sucio = True
@@ -449,6 +458,7 @@ def menu_principal(app):
     opciones = Lista("Opciones", [
         Item("Configurar joystick", ir(lambda: Calibrar()), icono="joystick"),
         Item("Control desde el celular", ir(ControlCelular), icono="celular"),
+        Item("Descargas", ir(Descargas), icono="bajar"),
         Item("Cambiar pantalla (tele / netbook)", lambda app: app.cambiar_pantalla(), icono="tele"),
         Item("Reiniciar", lambda app: app.poner(Confirmar("¿Reiniciar?", lambda a: a.sistema("reboot"))),
              icono="flecha"),

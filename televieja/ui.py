@@ -132,6 +132,10 @@ def icono(sup, nombre, x, y, color):
         pygame.draw.rect(sup, color, (x + 5, y, 13, 22), border_radius=3)
         pygame.draw.rect(sup, OSCURO, (x + 7, y + 3, 9, 13))
         pygame.draw.circle(sup, OSCURO, (x + 11, y + 19), 1)
+    elif nombre == "bajar":
+        pygame.draw.rect(sup, color, (x + 8, y + 1, 6, 11))
+        pygame.draw.polygon(sup, color, [(x + 2, y + 10), (x + 20, y + 10), (x + 11, y + 19)])
+        pygame.draw.rect(sup, color, (x + 1, y + 19, 20, 3))
     elif nombre == "flecha":
         pygame.draw.polygon(sup, color, [(x + 2, y + 11), (x + 12, y + 2), (x + 12, y + 20)])
         pygame.draw.rect(sup, color, (x + 11, y + 8, 10, 6))

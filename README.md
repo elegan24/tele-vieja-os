@@ -306,6 +306,37 @@ con **Wine**, un programa que hace andar juegos de Windows en Linux.
   **appdb.winehq.org**.
 - Wine ocupa bastante. Para no instalarlo: `sudo SIN_WINE=1 ./instalar.sh`.
 
+### Descargar desde Google Drive (con el celu)
+
+En la página del control del celu (*Opciones → Control desde el celular*) hay una sección
+**"Descargar de Google Drive"**: pegás el link de un archivo o de una carpeta, tocás **Bajar**,
+y la netbook lo baja sola. Ves cómo va en el celu y en la tele (*Opciones → Descargas*), y
+cuando termina aparece un aviso.
+
+Al terminar, **lo acomoda solo**:
+
+| Qué es | A dónde va |
+|---|---|
+| Videos | `Videos/` (respetando las carpetas: cada serie con sus capítulos) |
+| Música y radionovelas | `Radio/` |
+| Historietas (.cbr, .cbz, .pdf, o carpetas con páginas) | `Historietas/` |
+| Juegos (.nes, .sfc, .md, .gb, .gba, .z64, .cue/.chd...) | `Juegos/<consola>/` según la extensión |
+| Juegos de arcade (.zip de FBNeo) | `Juegos/Arcade/` |
+| Packs comprimidos (.zip/.rar/.7z con muchas cosas) | se descomprimen y se reparten |
+| Juegos de PC (carpetas con .exe) y lo que no reconoce | `Descargas/`, para acomodarlo a mano |
+
+Límites (los pone Google, no TeleVieja):
+- El link tiene que estar compartido como **"Cualquier persona con el enlace"**.
+- Sin una cuenta, Google muestra **como mucho 50 archivos por carpeta**. Si una carpeta tiene
+  más, te avisa: pegá el link de cada subcarpeta para bajar el resto.
+- Si un archivo se bajó demasiadas veces ese día, Google lo bloquea por un rato
+  (**"cuota de descarga"**): probá de nuevo al otro día.
+- Baja de a una descarga por vez y deja siempre medio GB libre en el disco.
+- Cualquiera conectado a tu WiFi puede usar la página, igual que el control.
+
+Usá la herramienta con cosas que tengas derecho a bajar: tus propios archivos, lo que te
+compartan, contenido libre o copias de juegos y discos que tengas.
+
 ### Videos más livianos
 
 La netbook no tiene aceleración de video. En una tele de tubo no se nota la diferencia,
@@ -462,6 +493,8 @@ Para volver al menú desde la terminal: `startx`.
   disco sin sacar el de BIOS. `bin/wifi-portatil.sh`: guarda el WiFi en NetworkManager.
 - `bin/disco-usb.sh` + `sistema/99-televieja-usb.rules` + `sistema/televieja-disco@.service`:
   montan solos los discos USB (solo lectura) en `/media/televieja/`.
+- `televieja/descargas.py` (cola), `televieja/bajar_drive.py` (baja con gdown, en
+  `/opt/televieja/pyenv`) y `televieja/acomodar.py` (reparte por tipo de archivo).
 - `televieja/remoto.py`: la página del control para el celu (un servidor web chiquito, puerto 8080)
   y el WebSocket del joystick. `televieja/joystick_virtual.py` crea el joystick virtual con
   `/dev/uinput`, y `mando.py` le arma a RetroArch un perfil de botones por cada joystick.

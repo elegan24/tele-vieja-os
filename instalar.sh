@@ -50,7 +50,7 @@ apt-get update
 PAQUETES=(
     xserver-xorg-core xserver-xorg-input-libinput xinit x11-xserver-utils mesa-utils
     matchbox-window-manager libgl1-mesa-dri
-    python3 python3-pygame python3-qrcode python3-evdev fonts-dejavu-core
+    python3 python3-pygame python3-qrcode python3-evdev python3-venv fonts-dejavu-core
     mpv ffmpeg alsa-utils
     retroarch libretro-core-info
     libretro-nestopia libretro-gambatte libretro-mgba
@@ -107,6 +107,17 @@ if [ -n "$ARQ_LIBRETRO" ]; then
     done
 fi
 
+# gdown, para bajar links de Google Drive desde el celu. Va en un Python aparte
+# (/opt/televieja/pyenv) para no mezclarse con el del sistema.
+if [ ! -x "$APP/pyenv/bin/python" ]; then
+    python3 -m venv "$APP/pyenv" || amarillo "   No pude crear el entorno para gdown."
+fi
+if [ -x "$APP/pyenv/bin/pip" ]; then
+    "$APP/pyenv/bin/pip" install --quiet --disable-pip-version-check "gdown==5.2.0" \
+        && echo "   gdown listo (descargas de Google Drive)." \
+        || amarillo "   No pude instalar gdown: las descargas de Drive no van a andar."
+fi
+
 # Nombres completos de los juegos de arcade ("sfa.zip" -> "Street Fighter Alpha")
 mkdir -p "$APP/datos"
 if curl -fsSL --retry 3 -o "$APP/datos/arcade.dat.tmp" \
@@ -141,7 +152,7 @@ sudo -u "$USUARIO" mkdir -p \
     "$R/Juegos/Family" "$R/Juegos/SuperNintendo" "$R/Juegos/Sega" \
     "$R/Juegos/GameBoy" "$R/Juegos/GameBoyAdvance" "$R/Juegos/NeoGeo" "$R/Juegos/PlayStation" \
     "$R/Juegos/Nintendo64" "$R/Juegos/Arcade" "$R/Juegos/PC" \
-    "$R/Historietas" "$R/Radio" "$R/Partidas" "$R/BIOS" \
+    "$R/Historietas" "$R/Radio" "$R/Partidas" "$R/BIOS" "$R/Descargas" \
     "$CASA/.config/televieja" "$CASA/.config/mpv"
 
 instalar_archivo() {  # instalar_archivo ORIGEN DESTINO [no-pisar]

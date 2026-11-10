@@ -982,3 +982,43 @@ class ControlCelular(Pantalla):
                                          (x0 + col * modulo, y0 + fila * modulo, modulo, modulo))
             ui.escribir(sup, f.chica, "Ahí también lo podés usar como joystick", ui.GRIS,
                         (ANCHO // 2, y0 + lado + 14), "midtop")
+
+
+# --- descargas (se agregan desde el celu) ---------------------------------------
+class Descargas(Lista):
+    """Muestra cómo van las descargas que se pidieron desde el celu."""
+    ESTADOS = {"esperando": "en espera", "bajando": "bajando", "acomodando": "acomodando",
+               "listo": "lista", "error": "error", "cancelado": "cancelada"}
+
+    def __init__(self):
+        super().__init__("Descargas", ayuda="B: volver   (se agregan desde el celu)")
+        self.proxima = 0
+        self.cargar()
+
+    def cargar(self):
+        from . import remoto
+        anterior = self.sel
+        self.items = []
+        lista = remoto.gestor.lista() if remoto.gestor else []
+        for d in lista:
+            if d["estado"] == "bajando" and d["total"]:
+                extra = "%d/%d %d%%" % (d["archivo"], d["total"], d["porcentaje"])
+            else:
+                extra = self.ESTADOS.get(d["estado"], d["estado"])
+            self.items.append(Item(d["nombre"], icono="bajar", extra=extra,
+                                   apagado=d["estado"] in ("error", "cancelado")))
+        if not self.items:
+            self.items.append(Item("No hay descargas. Pegá un link de Drive en la página "
+                                   "del celu (Opciones > Control desde el celular).", apagado=True))
+        self.sel = anterior
+        self.ajustar()
+
+    def actualizar(self, app, dt):
+        super().actualizar(app, dt)
+        if time.monotonic() > self.proxima:
+            self.proxima = time.monotonic() + 1
+            self.cargar()
+            app.sucio = True
+
+    def al_volver(self, app):
+        self.cargar()

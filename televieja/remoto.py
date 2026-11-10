@@ -8,6 +8,8 @@ botones viajan por un WebSocket y joystick_virtual.py los pasa a Linux.
 """
 import base64
 import hashlib
+import json
+import re
 import socket
 import struct
 import threading
@@ -30,6 +32,9 @@ def _crear_joystick():
 
 # Se puede reemplazar en las pruebas (acá no siempre hay /dev/uinput).
 crear_joystick = _crear_joystick
+
+# El gestor de descargas (descargas.Gestor): lo pone el menú al arrancar.
+gestor = None
 
 
 def direccion_ip():
@@ -55,8 +60,20 @@ class _Manejador(BaseHTTPRequestHandler):
             self._pagina(PAGINA_JOYSTICK)
         elif self.path == "/ws":
             self._websocket()
+        elif self.path == "/descargas":
+            self._json(200, {"descargas": gestor.lista() if gestor else [],
+                             "disponible": gestor is not None})
         else:
             self.send_error(404)
+
+    def _json(self, codigo, datos):
+        cuerpo = json.dumps(datos, ensure_ascii=False).encode("utf-8")
+        self.send_response(codigo)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(cuerpo)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(cuerpo)
 
     def _pagina(self, html):
         cuerpo = html.encode("utf-8")
@@ -148,6 +165,14 @@ class _Manejador(BaseHTTPRequestHandler):
             pass
 
     def do_POST(self):
+        if self.path == "/descargar":
+            self._descargar()
+            return
+        m = re.match(r"^/descargas/(\d+)/cancelar$", self.path)
+        if m:
+            ok = bool(gestor) and gestor.cancelar(int(m.group(1)))
+            self._json(200 if ok else 404, {"ok": ok})
+            return
         boton = self.path[3:] if self.path.startswith("/b/") else ""
         if boton not in BOTONES:
             self.send_error(404)
@@ -158,6 +183,22 @@ class _Manejador(BaseHTTPRequestHandler):
             pass
         self.send_response(204)
         self.end_headers()
+
+    def _descargar(self):
+        if gestor is None:
+            self._json(503, {"error": "Las descargas no están disponibles."})
+            return
+        largo = int(self.headers.get("Content-Length") or 0)
+        if largo <= 0 or largo > 4096:
+            self._json(400, {"error": "Pedido inválido."})
+            return
+        try:
+            url = json.loads(self.rfile.read(largo).decode("utf-8")).get("url", "")
+            trabajo = gestor.agregar(url)
+        except ValueError as e:
+            self._json(400, {"error": str(e)})
+            return
+        self._json(200, {"ok": True, "id": trabajo.id})
 
     def log_message(self, *args):
         pass
@@ -205,6 +246,19 @@ PAGINA = """<!doctype html>
     background:var(--amarillo); border-radius:14px; padding:16px; font-weight:800; font-size:18px;
     margin-bottom:18px; }
   #estado { margin-top:20px; font-size:13px; color:#97a3d6; text-align:center; min-height:1em; }
+  form.bajar { display:grid; grid-template-columns:1fr auto; gap:10px; }
+  form.bajar input { font:inherit; font-size:16px; min-width:0; padding:14px; border-radius:12px;
+    border:2px solid var(--borde); background:#0a0f33; color:var(--texto); }
+  form.bajar button { min-height:52px; padding:0 18px; }
+  .nota { font-size:13px; color:#97a3d6; margin:8px 0 0; line-height:1.4; }
+  .descarga { background:#141d55; border:1px solid var(--borde); border-radius:12px; padding:12px;
+    margin-top:10px; }
+  .descarga .titulo { font-weight:700; overflow-wrap:anywhere; }
+  .descarga .detalle { font-size:13px; color:#c7cdee; margin-top:4px; overflow-wrap:anywhere; }
+  .descarga .aviso { font-size:12px; color:var(--amarillo); margin-top:4px; }
+  .barra { height:8px; background:#0a0f33; border-radius:4px; margin-top:8px; overflow:hidden; }
+  .barra i { display:block; height:100%; background:var(--amarillo); width:0; }
+  .descarga button { min-height:36px; font-size:14px; padding:0 12px; margin-top:8px; }
 </style>
 </head>
 <body>
@@ -251,6 +305,15 @@ PAGINA = """<!doctype html>
     <button data-b="r">Guardar</button>
   </div>
 
+  <h2>Descargar de Google Drive</h2>
+  <form class="bajar" id="form-bajar">
+    <input type="url" id="link" placeholder="Pegá el link acá" autocomplete="off" required>
+    <button type="submit">Bajar</button>
+  </form>
+  <p class="nota">Archivo o carpeta compartidos como "Cualquier persona con el enlace".
+    Se baja en la netbook y se acomoda solo: videos, juegos, historietas, radio.</p>
+  <div id="descargas"></div>
+
   <div id="estado"></div>
 </main>
 <script>
@@ -278,6 +341,58 @@ PAGINA = """<!doctype html>
     ["pointerup", "pointerleave", "pointercancel"].forEach((t) => btn.addEventListener(t, soltar));
     btn.addEventListener("contextmenu", (e) => e.preventDefault());
   });
+
+  // --- Descargas ---
+  const formBajar = document.getElementById("form-bajar");
+  const campoLink = document.getElementById("link");
+  const listaDescargas = document.getElementById("descargas");
+  const ESTADOS = { esperando: "En espera", bajando: "Bajando", acomodando: "Acomodando",
+                    listo: "Listo ✔", error: "Error", cancelado: "Cancelada" };
+  function texto(t) { const s = document.createElement("span"); s.textContent = t; return s.innerHTML; }
+  function dibujarDescargas(lista) {
+    listaDescargas.innerHTML = lista.map((d) => {
+      let detalle = "";
+      if (d.estado === "bajando" && d.total) {
+        detalle = "Archivo " + d.archivo + " de " + d.total + (d.actual ? " · " + d.actual : "") +
+                  (d.porcentaje ? " · " + d.porcentaje + "%" : "");
+      } else if (d.estado === "acomodando") {
+        detalle = d.actual || "Repartiendo en las carpetas...";
+      } else if (d.estado === "listo") {
+        detalle = d.resumen;
+      }
+      const avance = d.total ? Math.round(((d.archivo - 1) + d.porcentaje / 100) / d.total * 100) : 0;
+      return '<div class="descarga"><div class="titulo">' + texto(d.nombre) + " — " +
+        texto(ESTADOS[d.estado] || d.estado) + "</div>" +
+        (detalle ? '<div class="detalle">' + texto(detalle) + "</div>" : "") +
+        (d.mensaje ? '<div class="aviso">' + texto(d.mensaje) + "</div>" : "") +
+        d.avisos.map((a) => '<div class="aviso">' + texto(a) + "</div>").join("") +
+        (d.estado === "bajando" ? '<div class="barra"><i style="width:' + avance + '%"></i></div>' : "") +
+        (d.estado === "esperando" || d.estado === "bajando"
+          ? '<button data-cancelar="' + d.id + '">Cancelar</button>' : "") + "</div>";
+    }).join("");
+  }
+  function actualizarDescargas() {
+    if (document.hidden) return;
+    fetch("/descargas").then((r) => r.json()).then((d) => dibujarDescargas(d.descargas)).catch(() => {});
+  }
+  formBajar.addEventListener("submit", (e) => {
+    e.preventDefault();
+    fetch("/descargar", { method: "POST", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ url: campoLink.value }) })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) { estado.textContent = d.error; return; }
+        campoLink.value = ""; estado.textContent = "¡Agregada! Se baja en la netbook.";
+        actualizarDescargas();
+      })
+      .catch(() => { estado.textContent = "No llego a la tele. ¿Está prendida y en el mismo WiFi?"; });
+  });
+  listaDescargas.addEventListener("click", (e) => {
+    const id = e.target.dataset.cancelar;
+    if (id) fetch("/descargas/" + id + "/cancelar", { method: "POST" }).then(actualizarDescargas);
+  });
+  actualizarDescargas();
+  setInterval(actualizarDescargas, 2000);
 </script>
 </body>
 </html>
