@@ -466,6 +466,21 @@ En una tele de 13" lo más cómodo es **Ancho**: la página ocupa todo el ancho 
 
 ---
 
+## Conectarse a otro WiFi
+
+*Opciones → **WiFi***: busca las redes cercanas, elegís una y escribís la contraseña, con el
+**teclado de la netbook** o con el **teclado en pantalla** (cruz para moverse, A escribe, B borra,
+SELECT mayúsculas, START listo). La red queda guardada: la próxima vez se conecta sola, igual que
+la de tu casa.
+
+La primera vez que usás esta pantalla, la placa WiFi deja de manejarla la configuración que armó
+el instalador de Debian y pasa a manejarla NetworkManager (la red de tu casa queda guardada igual;
+la configuración vieja queda copiada en `/etc/network/interfaces.televieja-antes`).
+
+**Sin ninguna red conocida cerca** (por ejemplo, para traer una actualización): compartí internet
+del celu por **cable USB** (en Android: Ajustes → Conexiones → Zona Wi-Fi y anclaje → **Anclaje
+USB**). La netbook lo toma como un cable de red y se conecta sola, sin configurar nada.
+
 ## Actualizar TeleVieja (con un botón)
 
 *Opciones → **Actualizar TeleVieja*** (o el botón **"Actualizar TeleVieja"** al final de la página

@@ -1,8 +1,10 @@
 """Las pantallas del menú. Cada una recibe botones ("up", "a", "b"...) y se dibuja."""
+import json
 import math
 import os
 import queue
 import re
+import subprocess
 import threading
 import time
 
@@ -1199,3 +1201,173 @@ class Protector(Pantalla):
             if self.logo is None:
                 self.logo = self.efectos.LogoRebotando(app.fuentes.grande, self.nombre)
             self.logo.dibujar(sup)
+
+
+# --- teclado en pantalla (para contraseñas de WiFi) --------------------------------
+class Teclado(Pantalla):
+    """Se escribe con el teclado de la netbook o eligiendo letras con el joystick.
+
+    Joystick: cruz para moverse, A escribe la letra, B borra, SELECT mayúsculas,
+    START termina. Teclado: se escribe directo, Enter termina, Esc cancela.
+    """
+    texto_libre = True
+    FILAS = {
+        False: ["1234567890", "qwertyuiop", "asdfghjklñ", "zxcvbnm.-_"],
+        True: ["!@#$%&*()=", "QWERTYUIOP", "ASDFGHJKLÑ", "ZXCVBNM,;:"],
+    }
+    ESPECIALES = ["Mayús", "Espacio", "Borrar", "Listo"]
+
+    def __init__(self, titulo, al_terminar, oculto=False):
+        self.titulo = titulo
+        self.al_terminar = al_terminar
+        self.texto = ""
+        self.mayus = False
+        self.fila = 1
+        self.col = 0
+        self.ayuda = "B borra · SELECT mayús · START listo"
+
+    def _filas(self):
+        return self.FILAS[self.mayus] + [self.ESPECIALES]
+
+    def escribir(self, app, texto):
+        self.texto = (self.texto + texto)[:64]
+        app.sucio = True
+
+    def borrar(self, app):
+        self.texto = self.texto[:-1]
+        app.sucio = True
+
+    def terminar(self, app):
+        app.sacar()
+        self.al_terminar(app, self.texto)
+
+    def accion(self, app, boton):
+        filas = self._filas()
+        if boton == "up":
+            self.fila = (self.fila - 1) % len(filas)
+        elif boton == "down":
+            self.fila = (self.fila + 1) % len(filas)
+        elif boton == "left":
+            self.col -= 1
+        elif boton == "right":
+            self.col += 1
+        elif boton == "a":
+            tecla = filas[self.fila][self.col % len(filas[self.fila])]
+            if tecla == "Mayús":
+                self.mayus = not self.mayus
+            elif tecla == "Espacio":
+                self.escribir(app, " ")
+            elif tecla == "Borrar":
+                self.borrar(app)
+            elif tecla == "Listo":
+                self.terminar(app)
+                return
+            else:
+                self.escribir(app, tecla)
+            app.sonido.tocar("mover")
+        elif boton == "b":
+            self.borrar(app)
+        elif boton == "select":
+            self.mayus = not self.mayus
+        elif boton == "start":
+            self.terminar(app)
+            return
+        self.col %= len(self._filas()[self.fila])
+        app.sucio = True
+
+    def tecla(self, app, ev):
+        """Eventos del teclado de verdad (los manda App cuando la pantalla tiene texto_libre)."""
+        if ev.type == pygame.TEXTINPUT:
+            self.escribir(app, ev.text)
+        elif ev.type == pygame.KEYDOWN:
+            if ev.key == pygame.K_BACKSPACE:
+                self.borrar(app)
+            elif ev.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                self.terminar(app)
+            elif ev.key == pygame.K_ESCAPE:
+                app.sacar()
+
+    def dibujar(self, app, sup):
+        f = app.fuentes
+        caja = pygame.Rect(MARGEN_X, MARGEN_Y + 62, ANCHO - 2 * MARGEN_X, 44)
+        ui.caja(sup, caja)
+        visible = ui.recortar(f.item, self.texto[::-1], caja.width - 30, "")[::-1]
+        ui.escribir(sup, f.item, visible + "_", ui.BLANCO, (caja.x + 12, caja.y + 7))
+        y0 = caja.bottom + 16
+        for i, fila in enumerate(self._filas()):
+            ancho = (ANCHO - 2 * MARGEN_X) // len(fila)
+            for j, tecla in enumerate(fila):
+                r = pygame.Rect(MARGEN_X + j * ancho + 2, y0 + i * 46, ancho - 4, 40)
+                elegida = i == self.fila and j == self.col % len(fila)
+                if elegida:
+                    pygame.draw.rect(sup, ui.AMARILLO, r, border_radius=6)
+                else:
+                    pygame.draw.rect(sup, ui.CAJA, r, border_radius=6)
+                    pygame.draw.rect(sup, ui.GRIS_OSCURO, r, 1, border_radius=6)
+                fuente = f.chica if len(tecla) > 1 else f.item
+                ui.escribir(sup, fuente, tecla, ui.ELEGIDO if elegida else ui.BLANCO, r.center,
+                            "center", sombra=False)
+
+
+# --- redes WiFi ---------------------------------------------------------------
+def _wifi(app, *args, entrada=None):
+    script = os.path.join(config.BIN_DIR, "wifi.py")
+    r = subprocess.run(["sudo", "-n", script] + list(args), capture_output=True, text=True,
+                       input=entrada, timeout=180)
+    try:
+        return json.loads(r.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        raise RuntimeError((r.stderr or r.stdout or "No anduvo el WiFi").strip().splitlines()[-1])
+
+
+def abrir_wifi(app):
+    def listo(app, redes, error):
+        if error:
+            app.poner(Mensaje("WiFi", "No pude buscar redes: %s" % error))
+        else:
+            app.poner(RedesWifi(redes))
+    app.poner(Espera("WiFi", "Buscando redes...", lambda: _wifi(app, "listar"), listo))
+
+
+class RedesWifi(Lista):
+    def __init__(self, redes):
+        super().__init__("WiFi", ayuda="A: conectar  B: volver")
+        self.items = [Item("Buscar de nuevo", abrir_otra_vez, icono="flecha")]
+        for r in redes:
+            barras = "▂▄▆█"[:max(1, min(4, (r["senal"] + 24) // 25))]
+            extra = ("conectada  " if r["conectada"] else "") + ("clave " if r["segura"] else "") + barras
+            self.items.append(Item(r["nombre"], lambda app, r=r: elegir_red(app, r), icono="celular",
+                                   extra=extra))
+        if not redes:
+            self.items.append(Item("No encontré redes cerca", apagado=True))
+
+
+def abrir_otra_vez(app):
+    app.sacar()
+    abrir_wifi(app)
+
+
+def elegir_red(app, red):
+    if red["conectada"]:
+        app.poner(Mensaje("WiFi", "Ya estás conectado a %s." % red["nombre"]))
+        return
+    if red["segura"]:
+        app.poner(Teclado("Contraseña de %s" % red["nombre"],
+                          lambda app, clave: conectar_red(app, red, clave)))
+    else:
+        conectar_red(app, red, "")
+
+
+def conectar_red(app, red, clave):
+    def listo(app, resultado, error):
+        if error or not resultado.get("ok"):
+            motivo = str(error) if error else (resultado.get("mensaje") or "No se pudo conectar.")
+            app.poner(Mensaje("No se pudo conectar", motivo))
+        else:
+            from . import remoto
+            app.sacar()  # la lista de redes vieja
+            app.poner(Mensaje("¡Conectado!", "Ahora estás en %s. La próxima vez se conecta sola.\n"
+                                             "Dirección para el celu: %s" % (
+                                                 red["nombre"], remoto.direccion_ip() or "-")))
+    app.poner(Espera("WiFi", "Conectando a %s..." % red["nombre"],
+                     lambda: _wifi(app, "conectar", red["nombre"], entrada=clave + "\n"), listo))

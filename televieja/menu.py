@@ -15,7 +15,7 @@ from . import config, remoto, reproducir, ui  # noqa: E402
 from . import mando as mando_mod  # noqa: E402
 from .mando import Mando  # noqa: E402
 from .pantallas import (Calibrar, Confirmar, ControlCelular, Descargas, ElegirTema, Espera,  # noqa: E402
-                        Explorador, Lector, Protector,
+                        Explorador, Lector, Protector, abrir_wifi,
                         Item, Lista,
                         ListaSistemas, Mensaje)
 from .ui import ANCHO, ALTO, MARGEN_X, MARGEN_Y  # noqa: E402
@@ -493,6 +493,14 @@ class App:
                 self.corriendo = False
             if ev.type in (pygame.VIDEOEXPOSE, pygame.WINDOWEXPOSED if hasattr(pygame, "WINDOWEXPOSED") else -1):
                 self.sucio = True
+            if getattr(self.actual, "texto_libre", False) and (
+                    ev.type == pygame.TEXTINPUT or (ev.type == pygame.KEYDOWN and ev.key in (
+                        pygame.K_BACKSPACE, pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE))):
+                self.ultima_actividad = time.monotonic()
+                self.actual.tecla(self, ev)   # escribir con el teclado de la netbook
+                continue
+            if getattr(self.actual, "texto_libre", False) and ev.type == pygame.KEYDOWN:
+                continue  # las letras llegan por TEXTINPUT (con mayúsculas y todo)
             if ev.type == remoto.EVENTO:
                 botones = [ev.boton]
                 if self.actual.crudo:
@@ -549,6 +557,7 @@ def menu_principal(app):
 
     opciones = Lista("Opciones", [
         Item("Configurar joystick", ir(lambda: Calibrar()), icono="joystick"),
+        Item("WiFi", abrir_wifi, icono="celular"),
         Item("Tema", ir(ElegirTema), icono="engranaje"),
         Item("Control desde el celular", ir(ControlCelular), icono="celular"),
         Item("Descargas", ir(Descargas), icono="bajar"),

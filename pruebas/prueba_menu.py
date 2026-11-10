@@ -410,6 +410,68 @@ def probar_mega(app, paso, foto):
     assert 'rel="manifest"' in pagina
 
 
+def probar_wifi(app, paso, foto):
+    """Opciones > WiFi con redes de mentira (acá no hay NetworkManager)."""
+    llamadas = []
+
+    def wifi_falso(app_, *args, entrada=None):
+        llamadas.append((args, entrada))
+        if args[0] == "listar":
+            return [{"nombre": "Casa de Roman", "senal": 30, "segura": True, "conectada": False},
+                    {"nombre": "Bar El Tubo", "senal": 80, "segura": True, "conectada": False},
+                    {"nombre": "Plaza Libre", "senal": 45, "segura": False, "conectada": False}]
+        return {"ok": entrada == "Mate&Facturas 2\n", "mensaje": "La contraseña no es correcta."}
+
+    pantallas._wifi = wifi_falso
+    while len(app.pila) > 1:
+        app.sacar()
+
+    def esperar_pantalla(clase):
+        fin = time.time() + 5
+        while time.time() < fin and not isinstance(app.actual, clase):
+            app.vuelta(0.05)
+            time.sleep(0.02)
+        assert isinstance(app.actual, clase), app.actual
+
+    pantallas.abrir_wifi(app)
+    esperar_pantalla(pantallas.RedesWifi)
+    textos = [it.texto for it in app.actual.items]
+    assert textos == ["Buscar de nuevo", "Casa de Roman", "Bar El Tubo", "Plaza Libre"], textos
+    foto("23-wifi-redes")
+    app.actual.sel = 2
+    paso("a")                                  # Bar El Tubo: pide contraseña
+    assert isinstance(app.actual, pantallas.Teclado)
+    teclado = app.actual
+    # con el teclado de la netbook (mayúsculas, símbolos, espacios)
+    for letra in "Mate&Facturas":
+        pygame.event.post(pygame.event.Event(pygame.TEXTINPUT, text=letra))
+    app.vuelta(0.05)
+    assert teclado.texto == "Mate&Facturas", teclado.texto
+    # y con el joystick: Espacio y el "2" del teclado en pantalla
+    teclado.fila, teclado.col = 4, 1           # Espacio
+    paso("a")
+    teclado.fila, teclado.col = 0, 1           # el "2"
+    paso("a")
+    assert teclado.texto == "Mate&Facturas 2", teclado.texto
+    paso("b", "a")                             # B borra; vuelve a poner el 2
+    assert teclado.texto == "Mate&Facturas 2", teclado.texto
+    foto("24-wifi-teclado")
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN, mod=0, unicode="\r",
+                                         scancode=0))
+    app.vuelta(0.05)
+    esperar_pantalla(pantallas.Mensaje)
+    assert app.actual.titulo_caja == "¡Conectado!", app.actual.titulo_caja
+    assert llamadas[-1] == (("conectar", "Bar El Tubo"), "Mate&Facturas 2\n"), llamadas[-1]
+    paso("a")
+    # contraseña mal: avisa
+    pantallas.conectar_red(app, {"nombre": "Casa de Roman", "segura": True}, "mal")
+    esperar_pantalla(pantallas.Mensaje)
+    assert "contraseña" in app.actual.texto, app.actual.texto
+    paso("a")
+    while len(app.pila) > 1:
+        app.sacar()
+
+
 def main():
     pygame.display.init()
     pygame.font.init()
@@ -559,6 +621,7 @@ game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 c
     paso("b")
     probar_controles(app, paso, foto)
     probar_mega(app, paso, foto)
+    probar_wifi(app, paso, foto)
     app.poner(pantallas.Calibrar("Encontré un joystick nuevo: vamos a configurarlo."))
     foto("13-calibrar")
     paso("b")  # (Calibrar ignora botones traducidos; sacamos a mano)

@@ -87,7 +87,7 @@ sed -i "s/@USUARIO@/$USUARIO/" "$APP/bin/importar-usb.sh" "$APP/bin/disco-usb.sh
 # Qué versión quedó instalada (para saber si hay algo nuevo)
 git -C "$AQUI" rev-parse --short HEAD > "$APP/VERSION" 2>/dev/null || true
 chown -R root:root "$APP"
-chmod 755 "$APP/bin/"*.sh
+chmod 755 "$APP/bin/"*.sh "$APP/bin/"*.py
 find "$APP" -name '__pycache__' -prune -exec rm -rf {} +
 
 verde "==> 3/7 Bajando emuladores que no vienen en Debian (Neo Geo, PlayStation, Super Nintendo liviano, GBA)..."
@@ -239,7 +239,7 @@ fi
 verde "==> 6/7 Permisos (joystick, sonido, apagar, discos USB)..."
 usermod -aG input,audio,video "$USUARIO"
 cat > /etc/sudoers.d/televieja <<EOF
-$USUARIO ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl reboot, $APP/bin/importar-usb.sh, $APP/bin/actualizar.sh
+$USUARIO ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl reboot, $APP/bin/importar-usb.sh, $APP/bin/actualizar.sh, $APP/bin/wifi.py
 EOF
 chmod 440 /etc/sudoers.d/televieja
 visudo -cf /etc/sudoers.d/televieja >/dev/null
