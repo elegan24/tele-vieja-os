@@ -305,6 +305,30 @@ EOF
 # Y por las dudas, que nada la pueda mandar a dormir.
 systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target >/dev/null 2>&1 || true
 
+# Video de las Intel viejas (GMA 3150 de las Atom N450/N455, GMA 950 y parecidas):
+# el modo "SNA" del controlador se cuelga a veces en estos chips; "UXA" es más estable.
+# Solo para esas placas (si el disco pasa a una netbook más nueva, se saca solo).
+INTEL_VIEJA=0
+for d in /sys/bus/pci/devices/*; do
+    grep -q '0x8086' "$d/vendor" 2>/dev/null || continue
+    case "$(cat "$d/device" 2>/dev/null)" in
+        0xa001|0xa011|0x2772|0x27a2|0x27ae|0x29c2|0x29b2|0x29d2) INTEL_VIEJA=1 ;;
+    esac
+done
+mkdir -p /etc/X11/xorg.conf.d
+if [ "$INTEL_VIEJA" = 1 ]; then
+    cat > /etc/X11/xorg.conf.d/20-televieja-intel.conf <<'EOF'
+# TeleVieja: modo UXA, más estable que SNA en las Intel GMA viejas
+Section "Device"
+    Identifier "Intel"
+    Driver "intel"
+    Option "AccelMethod" "uxa"
+EndSection
+EOF
+else
+    rm -f /etc/X11/xorg.conf.d/20-televieja-intel.conf
+fi
+
 verde "==> 7/7 Arranque silencioso..."
 if [ -f /etc/default/grub ]; then
     sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=2/' /etc/default/grub
