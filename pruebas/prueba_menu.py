@@ -2,6 +2,7 @@
 
 Uso:  python3 pruebas/prueba_menu.py CARPETA_CAPTURAS
 """
+import json
 import os
 import sys
 import tempfile
@@ -254,6 +255,7 @@ def probar_controles(app, paso, foto):
     assert principal.sel == 2, principal.sel           # Juegos
     celular(app, "a")
     assert app.actual.titulo == "Juegos", app.actual.titulo
+    app.actual.sel = [it.texto for it in app.actual.items].index("Family / NES")
     celular(app, "a")                                   # Family
     assert app.actual.titulo.startswith("Family")
     celular(app, "inicio")                              # vuelve al menú de una
@@ -318,6 +320,94 @@ def probar_wine():
     assert wine.orden("/x/a.exe", 640, 480) == ["wine", "explorer", "/desktop=TeleVieja,640x480", "/x/a.exe"]
     env = wine.entorno()
     assert env["WINEARCH"] == "win32" and env["WINEPREFIX"] == wine.PREFIJO
+
+
+def probar_mega(app, paso, foto):
+    """Mega actualización: temas, protector, encendido/apagado, favoritos e ícono del celu."""
+    import urllib.request
+    from televieja import efectos, favoritos, temas, ui
+    while len(app.pila) > 1:
+        app.sacar()
+    principal = app.pila[0]
+    # --- temas: vista previa al moverse, B vuelve, A guarda ---
+    assert temas.elegir("auto", __import__("datetime").date(2026, 12, 24)) == "navidad"
+    assert temas.elegir("auto", __import__("datetime").date(2026, 10, 31)) == "halloween"
+    assert temas.elegir("auto", __import__("datetime").date(2026, 7, 9)) == "clasico"
+    assert temas.elegir("gameboy") == "gameboy"
+    antes = app.tema
+    app.poner(pantallas.ElegirTema())
+    elegir = app.actual
+    elegir.sel = 0
+    paso("down", "down")                      # Automático -> Clásico -> Fichín
+    assert app.tema == "fichin" and ui.TEMA == "fichin"
+    foto("16-tema-fichin")
+    paso("b")
+    assert app.tema == antes, "B tenía que volver al tema de antes"
+    app.poner(pantallas.ElegirTema())
+    app.actual.sel = temas.ORDEN.index("gameboy") + 1
+    paso("a")
+    assert app.tema == "gameboy" and config.leer_opciones()["TEMA"] == "gameboy"
+    assert "PUERTO_CELULAR=18080" in open(config.ARCHIVO_OPCIONES).read()  # no borra lo demás
+    foto("17-tema-gameboy")
+    # --- encendido y apagado: cuadros de la animación ---
+    app._dibujar(app.actual, app.lienzo)
+    imagen = app.lienzo.copy()
+    hoja = pygame.Surface((4 * 330, 2 * 250))
+    hoja.fill((40, 40, 40))
+    for i, t in enumerate((0.08, 0.3, 0.55, 0.85)):
+        hoja.blit(pygame.transform.scale(efectos.cuadro_encendido(imagen, t), (320, 240)), (i * 330 + 5, 5))
+        hoja.blit(pygame.transform.scale(efectos.cuadro_apagado(imagen, (0.2, 0.5, 0.75, 0.9)[i]),
+                                         (320, 240)), (i * 330 + 5, 255))
+    pygame.image.save(hoja, os.path.join(SALIDA, "18-encendido-apagado.png"))
+    # --- protector: aparece solo si no se toca nada, y un botón lo saca ---
+    app.opciones["PROTECTOR_MINUTOS"] = "1"
+    app.ultima_actividad = time.monotonic() - 30
+    app.vuelta(0.05)
+    assert not isinstance(app.actual, pantallas.Protector)
+    app.ultima_actividad = time.monotonic() - 61
+    app.vuelta(0.05)
+    assert isinstance(app.actual, pantallas.Protector), app.actual
+    foto("19-protector-carta")
+    app.actual.inicio -= 50                     # pasar a la parte del logo
+    for _ in range(40):
+        app.actual.actualizar(app, 0.1)
+    foto("20-protector-logo")
+    app.actual.accion(app, "a")
+    assert not isinstance(app.actual, pantallas.Protector)
+    app.opciones["PROTECTOR_MINUTOS"] = "0"
+    app.aplicar_tema("clasico")
+    # --- favoritos y últimos jugados ---
+    principal.sel = [it.texto for it in principal.items].index("Juegos")
+    paso("a")
+    sistemas = app.actual
+    sistemas.sel = [it.texto for it in sistemas.items].index("Family / NES")
+    paso("a")
+    juegos = app.actual
+    juegos.sel = [it.texto for it in juegos.items].index("Contra")
+    paso("x")
+    assert juegos.items[juegos.sel].extra == "★"
+    assert favoritos.es_favorito(juegos.items[juegos.sel].dato)
+    paso("a")                                   # jugar: queda en "Últimos jugados"
+    paso("b")
+    textos = [it.texto for it in app.actual.items]
+    assert textos[:2] == ["Favoritos", "Últimos jugados"], textos
+    foto("21-juegos-favoritos")
+    app.actual.sel = 0
+    paso("a")
+    assert [it.texto for it in app.actual.items] == ["Contra"], [it.texto for it in app.actual.items]
+    assert app.actual.items[0].extra == "Family"
+    paso("x")                                   # sacarlo de favoritos desde la lista
+    assert app.actual.items[0].texto == "(vacío)"
+    paso("b", "b")
+    # --- el control del celu como app ---
+    manifiesto = json.loads(urllib.request.urlopen("http://127.0.0.1:18080/manifest.json").read())
+    assert manifiesto["name"] == "TeleVieja" and manifiesto["display"] == "standalone"
+    icono = urllib.request.urlopen("http://127.0.0.1:18080/icono-512.png").read()
+    assert icono[:8] == b"\x89PNG\r\n\x1a\n", icono[:8]
+    with open(os.path.join(SALIDA, "22-icono-celu.png"), "wb") as f:
+        f.write(icono)
+    pagina = urllib.request.urlopen("http://127.0.0.1:18080/").read().decode()
+    assert 'rel="manifest"' in pagina
 
 
 def main():
@@ -427,7 +517,9 @@ game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 c
     foto("05d-pc-que-exe")
     paso("a", "b")
     app.lanzar = lanzar_original
-    app.actual.sel = 0
+    app.actual.cargar()   # ahora aparece "Últimos jugados" (se jugó Sonic R)
+    assert app.actual.items[0].texto == "Últimos jugados", app.actual.items[0].texto
+    app.actual.sel = [it.texto for it in app.actual.items].index("Family / NES")
     ps1 = [it for it in app.actual.items if it.texto == "PlayStation"][0]
     assert ps1.extra == "5", ps1.extra    # Crash, Tekken, FF7 (una vez), Juego Suelto, Wipeout
     paso("a")                         # Family
@@ -466,6 +558,7 @@ game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 c
     foto("12b-radio-disco-nuevo")
     paso("b")
     probar_controles(app, paso, foto)
+    probar_mega(app, paso, foto)
     app.poner(pantallas.Calibrar("Encontré un joystick nuevo: vamos a configurarlo."))
     foto("13-calibrar")
     paso("b")  # (Calibrar ignora botones traducidos; sacamos a mano)

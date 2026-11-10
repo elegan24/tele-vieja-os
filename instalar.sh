@@ -56,7 +56,7 @@ PAQUETES=(
     libretro-nestopia libretro-gambatte libretro-mgba
     poppler-utils libarchive-tools
     rsync ntfs-3g exfatprogs curl unzip sudo
-    network-manager
+    network-manager iw
     firmware-misc-nonfree firmware-realtek firmware-iwlwifi firmware-atheros
     firmware-brcm80211 firmware-sof-signed firmware-intel-sound
 )
@@ -185,6 +185,13 @@ N64=auto
 # Juegos de PC: mostrarlos en una ventana del tamaño de la pantalla (si) o dejar que
 # cambien la resolución (no). Con "si" la tele y el conversor no se enteran.
 PC_ESCRITORIO_VIRTUAL=si
+# Tema del menú: auto (Navidad y Halloween según la fecha), clasico, fichin,
+# gameboy, cine, canal7, navidad o halloween. Se cambia desde Opciones > Tema.
+TEMA=auto
+# Efecto de tele de tubo al prender y al apagar (si/no)
+EFECTO_ENCENDIDO=si
+# Minutos sin tocar nada hasta el protector de pantalla (0 = nunca)
+PROTECTOR_MINUTOS=5
 EOF
     chown "$USUARIO:$USUARIO" "$CASA/.config/televieja/opciones.conf"
 fi
@@ -254,6 +261,30 @@ udevadm trigger --subsystem-match=misc --sysname-match=uinput --action=add 2>/de
 
 # WiFi para cualquier netbook (por si después pasás el disco a otra)
 "$APP/bin/wifi-portatil.sh" || true
+
+# WiFi sin cortes: muchas placas (como la Realtek RTL8191SE de las Conectar Igualdad)
+# se desconectan solas por el "ahorro de energía". Lo apagamos.
+cat > /etc/modprobe.d/televieja-wifi.conf <<'EOF'
+# TeleVieja: sin ahorro de energía en las placas WiFi que se cortan solas
+options rtl8192se ips=0 swlps=0 fwlps=0 aspm=0
+options rtl8192ce ips=0 swlps=0 fwlps=0
+options rtl8188ee ips=0 swlps=0 fwlps=0
+options rtl8723be ips=0 swlps=0 fwlps=0
+options iwlwifi power_save=0
+EOF
+mkdir -p /etc/NetworkManager/conf.d /etc/network/if-up.d
+printf '[connection]\nwifi.powersave = 2\n' > /etc/NetworkManager/conf.d/televieja-wifi.conf
+cat > /etc/network/if-up.d/televieja-wifi <<'EOF'
+#!/bin/sh
+# TeleVieja: sin ahorro de energía en el WiFi (si no, se corta solo)
+case "$IFACE" in
+    wl*) /usr/sbin/iw dev "$IFACE" set power_save off 2>/dev/null || true ;;
+esac
+EOF
+chmod 755 /etc/network/if-up.d/televieja-wifi
+for placa in /sys/class/net/wl*; do
+    [ -e "$placa" ] && iw dev "$(basename "$placa")" set power_save off 2>/dev/null || true
+done
 
 verde "==> 7/7 Arranque silencioso..."
 if [ -f /etc/default/grub ]; then

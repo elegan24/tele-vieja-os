@@ -70,12 +70,13 @@ def armar_canal(opciones):
     return ruta
 
 
-def orden_canal(opciones, lista):
+def orden_canal(opciones, lista, color="&HFFFFFF&"):
     nombre = opciones.get("NOMBRE_CANAL", "TELE VIEJA").replace(",", " ")
-    opts = "canal-nombre=%s,canal-reloj=%s,canal-empezado=%s" % (
+    opts = "canal-nombre=%s,canal-reloj=%s,canal-empezado=%s,canal-color=%s" % (
         nombre,
         "si" if config.opcion_si(opciones, "CANAL_RELOJ") else "no",
         "si" if config.opcion_si(opciones, "CANAL_EMPEZADO") else "no",
+        color,
     )
     return mpv_base() + [
         "--script=" + os.path.join(config.SISTEMA_DIR, "canal.lua"),

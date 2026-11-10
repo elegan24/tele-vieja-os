@@ -176,15 +176,15 @@ class Lista(Pantalla):
             if elegido:
                 pygame.draw.rect(sup, ui.AMARILLO, (MARGEN_X - 6, y, ANCHO - 2 * MARGEN_X + 12,
                                                     self.ALTO_FILA - 4), border_radius=8)
-            color = ui.OSCURO if elegido else (ui.GRIS_OSCURO if item.apagado else ui.BLANCO)
+            color = ui.ELEGIDO if elegido else (ui.GRIS_OSCURO if item.apagado else ui.BLANCO)
             x = MARGEN_X + 4
             if item.icono:
-                ui.icono(sup, item.icono, x, y + 7, ui.OSCURO if elegido else
+                ui.icono(sup, item.icono, x, y + 7, ui.ELEGIDO if elegido else
                          (ui.GRIS_OSCURO if item.apagado else ui.AMARILLO))
                 x += 34
             ancho_extra = 0
             if item.extra:
-                img = f.chica.render(item.extra, True, ui.OSCURO if elegido else ui.GRIS)
+                img = f.chica.render(item.extra, True, ui.ELEGIDO if elegido else ui.GRIS)
                 ancho_extra = img.get_width() + 12
                 sup.blit(img, img.get_rect(midright=(ANCHO - MARGEN_X, y + self.ALTO_FILA // 2 - 2)))
             disponible = (ANCHO - MARGEN_X) - x - ancho_extra - 6
@@ -265,7 +265,7 @@ class Confirmar(Pantalla):
             b.center = (r.centerx + (-80 if i == 0 else 80), r.y + 105)
             if i == self.opcion:
                 pygame.draw.rect(sup, ui.AMARILLO, b, border_radius=8)
-            ui.escribir(sup, f.item, texto, ui.OSCURO if i == self.opcion else ui.BLANCO,
+            ui.escribir(sup, f.item, texto, ui.ELEGIDO if i == self.opcion else ui.BLANCO,
                         b.center, "center", sombra=i != self.opcion)
 
 
@@ -305,8 +305,8 @@ class Espera(Pantalla):
             ang = i / 8 * 6.283 + t * 4
             x = ANCHO // 2 + int(26 * math.cos(ang))
             y = ALTO // 2 + 20 + int(26 * math.sin(ang))
-            brillo = 80 + int(175 * (i / 7))
-            pygame.draw.circle(sup, (brillo, brillo * 212 // 255, 60 * brillo // 255), (x, y), 5)
+            brillo = 0.3 + 0.7 * (i / 7)
+            pygame.draw.circle(sup, [int(c * brillo) for c in ui.AMARILLO], (x, y), 5)
 
 
 # --- explorador de carpetas (videos, radio, historietas) ---------------------
@@ -446,7 +446,17 @@ class ListaSistemas(Lista):
         self.cargar()
 
     def cargar(self):
+        from . import favoritos
         self.items = []
+        datos = favoritos.cargar()
+        favs = favoritos.disponibles(datos["favoritos"])
+        ultimos = favoritos.disponibles(datos["ultimos"])
+        if favs:
+            self.items.append(Item("Favoritos", lambda app: app.poner(ListaEspecial("favoritos")),
+                                   icono="estrella", extra=str(len(favs))))
+        if ultimos:
+            self.items.append(Item("Últimos jugados", lambda app: app.poner(ListaEspecial("ultimos")),
+                                   icono="reloj", extra=str(len(ultimos))))
         opciones = config.leer_opciones()
         for s in config.SISTEMAS:
             if not config.sistema_visible(s, opciones):
@@ -494,10 +504,38 @@ class ListaSistemas(Lista):
             app.poner(ListaJuegos(sistema, roms, core))
 
 
+CORTOS = {"nes": "Family", "snes": "SNES", "sega": "Sega", "gb": "Game Boy", "gba": "GBA",
+          "neogeo": "Neo Geo", "arcade": "Arcade", "ps1": "PS1", "n64": "N64", "pc": "PC"}
+
+
+def nombre_de_juego(rom, sistema_id):
+    if sistema_id in ("arcade", "neogeo"):
+        corto = os.path.splitext(os.path.basename(rom))[0]
+        return limpiar_nombre_rom(config.nombres_arcade().get(corto.lower(), corto) + ".x")[0]
+    if sistema_id == "pc":
+        return os.path.basename(rom)
+    return limpiar_nombre_rom(os.path.basename(rom))[0]
+
+
+def alternar_favorito(app, lista, sistema_id):
+    """X en una lista de juegos: agrega o saca de Favoritos."""
+    from . import favoritos
+    if not lista.items or lista.items[lista.sel].dato is None:
+        return
+    item = lista.items[lista.sel]
+    rom = item.dato["rom"] if isinstance(item.dato, dict) else item.dato
+    sistema = item.dato["sistema"] if isinstance(item.dato, dict) else sistema_id
+    queda = favoritos.alternar_favorito(rom, sistema)
+    app.sonido.tocar("elegir" if queda else "volver")
+    app.avisar("★ Agregado a Favoritos" if queda else "Sacado de Favoritos", 1.5)
+    return queda
+
+
 class ListaJuegos(Lista):
     def __init__(self, sistema, roms, core):
-        super().__init__(sistema["nombre"], ayuda="A: jugar  B: volver  L/R: letra")
+        super().__init__(sistema["nombre"], ayuda="A: jugar  X: favorito  L/R: letra")
         self.core = core
+        self.sistema = sistema
         if sistema.get("nombres") == "arcade":
             tabla = config.nombres_arcade()
             nombres = []
@@ -516,10 +554,63 @@ class ListaJuegos(Lista):
         for rom, (corto, medio) in zip(roms, nombres):
             pares.append((corto if cuenta[corto] == 1 else medio, rom))
         pares.sort(key=lambda p: config.clave_natural(p[0]))
+        from . import favoritos
+        datos = favoritos.cargar()
+        favs = {f["rom"] for f in datos["favoritos"]}
         if sistema.get("pc"):
-            self.items = [Item(n, lambda app, rom=rom: app.jugar_pc(rom)) for n, rom in pares]
+            self.items = [Item(n, lambda app, rom=rom: app.jugar_pc(rom), dato=rom,
+                               extra="★" if rom in favs else "") for n, rom in pares]
         else:
-            self.items = [Item(n, lambda app, rom=rom: app.jugar(self.core, rom)) for n, rom in pares]
+            self.items = [Item(n, lambda app, rom=rom: app.jugar(self.core, rom, self.sistema["id"]),
+                               dato=rom, extra="★" if rom in favs else "") for n, rom in pares]
+
+    def accion(self, app, boton):
+        if boton == "x":
+            queda = alternar_favorito(app, self, self.sistema["id"])
+            if queda is not None:
+                self.items[self.sel].extra = "★" if queda else ""
+                app.sucio = True
+        else:
+            super().accion(app, boton)
+
+
+class ListaEspecial(Lista):
+    """Favoritos o Últimos jugados: juegos de todas las consolas juntos."""
+
+    def __init__(self, cual):
+        self.cual = cual
+        super().__init__("Favoritos" if cual == "favoritos" else "Últimos jugados",
+                         ayuda="A: jugar  X: favorito  B: volver")
+        self.cargar()
+
+    def cargar(self):
+        from . import favoritos
+        datos = favoritos.cargar()
+        entradas = favoritos.disponibles(datos[self.cual])
+        favs = {f["rom"] for f in datos["favoritos"]}
+        if self.cual == "favoritos":
+            entradas.sort(key=lambda e: config.clave_natural(nombre_de_juego(e["rom"], e["sistema"])))
+        self.items = []
+        for e in entradas:
+            corto = CORTOS.get(e["sistema"], e["sistema"])
+            extra = ("★ " if self.cual == "ultimos" and e["rom"] in favs else "") + corto
+            self.items.append(Item(nombre_de_juego(e["rom"], e["sistema"]),
+                                   lambda app, e=e: app.jugar_entrada(e), dato=e, extra=extra,
+                                   icono="estrella" if self.cual == "favoritos" else "reloj"))
+        if not self.items:
+            self.items.append(Item("(vacío)", apagado=True))
+        self.ajustar()
+
+    def accion(self, app, boton):
+        if boton == "x":
+            if alternar_favorito(app, self, None) is not None:
+                self.cargar()
+                app.sucio = True
+        else:
+            super().accion(app, boton)
+
+    def al_volver(self, app):
+        self.cargar()
 
 
 # --- lector de historietas ----------------------------------------------------
@@ -1024,3 +1115,79 @@ class Descargas(Lista):
 
     def al_volver(self, app):
         self.cargar()
+
+
+# --- elegir tema ------------------------------------------------------------------
+class ElegirTema(Lista):
+    """Al moverse se ve el tema al instante; A lo guarda, B vuelve al de antes."""
+
+    def __init__(self):
+        from . import temas
+        super().__init__("Tema", ayuda="A: usar este   B: volver")
+        self.original = None
+        guardado = config.leer_opciones().get("TEMA", "auto").lower()
+        hoy = temas.TEMAS[temas.de_temporada()]["nombre"]
+        self.ids = ["auto"] + temas.ORDEN
+        self.items = [Item("Automático (según la fecha: %s)" % hoy, icono="engranaje",
+                           extra="actual" if guardado == "auto" else "")]
+        for ident in temas.ORDEN:
+            self.items.append(Item(temas.TEMAS[ident]["nombre"], icono="tele",
+                                   extra="actual" if guardado == ident else ""))
+        self.sel = self.ids.index(guardado) if guardado in self.ids else 0
+
+    def _id_elegido(self):
+        from . import temas
+        ident = self.ids[self.sel]
+        return temas.elegir(ident)
+
+    def mover(self, app, a):
+        if self.original is None:
+            self.original = app.tema
+        super().mover(app, a)
+        app.aplicar_tema(self._id_elegido())  # vista previa
+
+    def accion(self, app, boton):
+        if boton in ("a", "start"):
+            config.guardar_opcion("TEMA", self.ids[self.sel])
+            app.opciones = config.leer_opciones()
+            app.aplicar_tema(self._id_elegido())
+            app.sonido.tocar("elegir")
+            app.sacar()
+            app.avisar("Tema: " + self.items[self.sel].texto.split(" (")[0])
+        elif boton == "b":
+            if self.original is not None:
+                app.aplicar_tema(self.original)
+            super().volver(app)
+        else:
+            super().accion(app, boton)
+
+
+# --- protector de pantalla -----------------------------------------------------------
+class Protector(Pantalla):
+    """Si no tocás nada un rato: carta de ajuste y logo rebotando. Cualquier botón vuelve."""
+    sin_marco = True
+
+    def __init__(self, nombre):
+        from . import efectos
+        self.efectos = efectos
+        self.nombre = nombre
+        self.inicio = time.monotonic()
+        self.logo = None
+
+    def accion(self, app, boton):
+        app.sacar()  # el botón solo despierta: no hace nada más
+
+    def actualizar(self, app, dt):
+        if self.logo is None:
+            self.logo = self.efectos.LogoRebotando(app.fuentes.grande, self.nombre)
+        if self.efectos.fase_protector(time.monotonic() - self.inicio) == "logo":
+            self.logo.mover(min(dt, 0.2))
+        app.sucio = True
+
+    def dibujar(self, app, sup):
+        if self.efectos.fase_protector(time.monotonic() - self.inicio) == "carta":
+            self.efectos.dibujar_carta(sup, app.fuentes, self.nombre)
+        else:
+            if self.logo is None:
+                self.logo = self.efectos.LogoRebotando(app.fuentes.grande, self.nombre)
+            self.logo.dibujar(sup)

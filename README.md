@@ -361,6 +361,7 @@ En Windows se puede hacer lo mismo con **HandBrake**: preset *"Fast 480p30"* y e
 | A | Enter | Elegir |
 | B | Esc | Volver |
 | L / R | RePág / AvPág | Saltar a la letra anterior / siguiente (para listas con miles de juegos) |
+| X | F2 o Insert | En una lista de juegos: agregar o sacar de **Favoritos** ★ |
 | — | una letra | Ir a los juegos que empiezan con esa letra |
 
 Cada vez que enchufás un **modelo nuevo** de joystick, TeleVieja te pide que **apretes cada botón**
@@ -391,7 +392,12 @@ celu (configurá el WiFi al instalar Debian). En el menú andá a
 *Opciones → Control desde el celular*: aparece una dirección (por ejemplo
 `http://192.168.0.23:8080`) y un **código QR**. Escanealo con la cámara del celu y tenés
 un control con cruz, OK, volver, inicio, pausa, volumen y botones para los juegos
-(guardar, cargar y salir). Guardala en favoritos o agregala a la pantalla de inicio.
+(guardar, cargar y salir).
+
+**Tenerlo como una app:** con la página abierta en Chrome, tocá los 3 puntitos →
+**"Agregar a la pantalla principal"** (en iPhone: Compartir → "Agregar a inicio"). Queda un
+ícono de una tele retro llamado "TeleVieja". Si reiniciás el router y deja de andar, volvé a
+escanear el QR (a veces la netbook cambia de dirección).
 
 **El celular como joystick.** En esa misma página tocá **"🎮 Usar el celu como joystick"**,
 girá el celu y aparece un joystick tipo Super Nintendo: cruz, A, B, X, Y, L, R, SELECT y START
@@ -443,6 +449,24 @@ En una tele de 13" lo más cómodo es **Ancho**: la página ocupa todo el ancho 
 
 ---
 
+## Temas, efectos y otras chucherías
+
+- **Temas** (*Opciones → Tema*): Clásico, Fichín (arcade, con grilla de neón), Game Boy (los
+  4 verdes), Cine (con telón), Canal 7 años 80 (la carta de ajuste), Navidad y Halloween. Al
+  moverte por la lista ya se ve cómo queda; A lo elige y B vuelve al de antes. Cada tema cambia
+  también los pitiditos del menú y el color del logo del Canal Retro. En **Automático** usa el
+  Clásico, salvo en Navidad (diciembre hasta Reyes) y Halloween (fines de octubre), que se ponen solos.
+- **Encendido y apagado de tele de tubo:** al prender, la imagen se abre desde una rayita de
+  luz; al apagar, se cierra en un puntito.
+- **Protector de pantalla:** si no tocás nada por 5 minutos aparece la **carta de ajuste** y
+  después el **logo rebotando** (cambia de color en cada choque y cuenta las veces que pega justo
+  en la esquina). Van alternando para que no se marque el tubo. Cualquier botón vuelve.
+- **Favoritos y Últimos jugados:** en una lista de juegos apretá **X** para marcar un favorito
+  (★). Arriba de todo en *Juegos* aparecen **Favoritos** y **Últimos jugados**, con juegos de
+  todas las consolas juntos.
+- **WiFi sin cortes:** el instalador apaga el "ahorro de energía" de la placa WiFi, que en
+  algunas (como la Realtek RTL8191SE de las Conectar Igualdad) hace que se corte sola.
+
 ## 6. Opciones
 
 En `~/.config/televieja/opciones.conf` (desde *Opciones → Salir a la terminal*, con `nano`):
@@ -460,6 +484,9 @@ En `~/.config/televieja/opciones.conf` (desde *Opciones → Salir a la terminal*
 | `PUERTO_CELULAR` | El puerto de esa página (`8080`) |
 | `N64` | `auto` (aparece si la placa de video puede), `si` o `no` |
 | `PC_ESCRITORIO_VIRTUAL` | `si`: los juegos de PC en una ventana del tamaño de la pantalla; `no`: que cambien la resolución |
+| `TEMA` | `auto`, `clasico`, `fichin`, `gameboy`, `cine`, `canal7`, `navidad` o `halloween` |
+| `EFECTO_ENCENDIDO` | `si`/`no`: efecto de tele de tubo al prender y apagar |
+| `PROTECTOR_MINUTOS` | Minutos sin tocar nada hasta el protector de pantalla (`0` = nunca) |
 
 Para volver al menú desde la terminal: `startx`.
 
@@ -477,6 +504,7 @@ Para volver al menú desde la terminal: `startx`.
 | El joystick no responde en los juegos | *Opciones → Configurar joystick* |
 | Un video anda trabado | Pasalo a 480p (ver arriba) |
 | El joystick del celu dice "No se pudo crear el joystick" | Reiniciá la netbook (carga el módulo `uinput`). Si sigue, volvé a correr `sudo ./instalar.sh` |
+| El WiFi se corta cada tanto | Volvé a correr `sudo ./instalar.sh` (apaga el ahorro de energía del WiFi) y reiniciá |
 | El celu no abre la página del control | Que esté en el mismo WiFi que la netbook (no en datos móviles) y que la dirección sea la que muestra *Opciones → Control desde el celular* |
 | Un juego no abre | Revisá que la ROM sea de esa consola. Los errores quedan en `~/.cache/televieja/juego.log` |
 | Un juego de PC no abre | Mirá `~/.cache/televieja/pc.log` y buscá el juego en appdb.winehq.org |

@@ -44,6 +44,9 @@ OPCIONES_POR_DEFECTO = {
     "RESOLUCION": "640x480",
     "CONTROL_CELULAR": "si",
     "N64": "auto",
+    "TEMA": "auto",
+    "EFECTO_ENCENDIDO": "si",
+    "PROTECTOR_MINUTOS": "5",
     "PC_ESCRITORIO_VIRTUAL": "si",
     "PUERTO_CELULAR": "8080",
 }
@@ -269,6 +272,27 @@ def leer_opciones():
     except OSError:
         pass
     return opciones
+
+
+def guardar_opcion(clave, valor):
+    """Cambia (o agrega) una opción en opciones.conf sin tocar el resto del archivo."""
+    try:
+        with open(ARCHIVO_OPCIONES, encoding="utf-8") as f:
+            lineas = f.read().splitlines()
+    except OSError:
+        lineas = []
+    nueva = "%s=%s" % (clave, valor)
+    for i, linea in enumerate(lineas):
+        if linea.strip().split("=", 1)[0].strip() == clave and not linea.lstrip().startswith("#"):
+            lineas[i] = nueva
+            break
+    else:
+        lineas.append(nueva)
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    tmp = ARCHIVO_OPCIONES + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(lineas) + "\n")
+    os.replace(tmp, ARCHIVO_OPCIONES)
 
 
 def opcion_si(opciones, clave):

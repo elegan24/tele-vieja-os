@@ -1,4 +1,5 @@
 """Dibujo: colores, letras e íconos pensados para una tele de tubo de 640x480."""
+import math
 import os
 
 import pygame
@@ -7,18 +8,38 @@ ANCHO, ALTO = 640, 480
 # Las teles de tubo "comen" los bordes de la imagen (overscan): dejamos margen.
 MARGEN_X, MARGEN_Y = 44, 28
 
+# Los colores los pone el tema (ver temas.py y aplicar_tema). Estos son los del clásico.
 FONDO_ARRIBA = (12, 18, 64)
 FONDO_ABAJO = (28, 48, 132)
-AMARILLO = (255, 212, 60)
-BLANCO = (236, 236, 236)
+AMARILLO = (255, 212, 60)       # el "acento": lo elegido y los títulos
+ELEGIDO = (10, 14, 40)          # el texto sobre lo elegido
+BLANCO = (236, 236, 236)        # el texto
 GRIS = (150, 162, 205)
 GRIS_OSCURO = (90, 100, 140)
-OSCURO = (10, 14, 40)
+OSCURO = (10, 14, 40)           # sombras
+CAJA = (16, 24, 72)             # fondo de los carteles
+SOMBRAS = True
 ROJO = (230, 70, 60)
 VERDE = (90, 200, 110)
 NARANJA = (245, 140, 40)
 CELESTE = (90, 170, 240)
 FRANJAS = (ROJO, NARANJA, AMARILLO, VERDE, CELESTE)
+TEMA = "clasico"
+_DECORAR = None
+
+
+def aplicar_tema(nombre):
+    """Cambia todos los colores al tema `nombre` (ver temas.py)."""
+    global FONDO_ARRIBA, FONDO_ABAJO, AMARILLO, ELEGIDO, BLANCO, GRIS, GRIS_OSCURO
+    global OSCURO, CAJA, SOMBRAS, FRANJAS, TEMA, _DECORAR
+    from . import temas
+    t = temas.TEMAS.get(nombre) or temas.TEMAS["clasico"]
+    FONDO_ARRIBA, FONDO_ABAJO = t["fondo_arriba"], t["fondo_abajo"]
+    AMARILLO, ELEGIDO, BLANCO = t["acento"], t["elegido"], t["texto"]
+    GRIS, GRIS_OSCURO, OSCURO = t["gris"], t["gris_oscuro"], t["sombra"]
+    CAJA, SOMBRAS, FRANJAS = t["caja"], t["sombras"], t["franjas"]
+    TEMA = nombre if nombre in temas.TEMAS else "clasico"
+    _DECORAR = (t["decorar"], t)
 
 RUTAS_FUENTE = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -42,6 +63,9 @@ def fondo():
         t = y / (ALTO - 1)
         color = [int(a + (b - a) * t) for a, b in zip(FONDO_ARRIBA, FONDO_ABAJO)]
         pygame.draw.line(sup, color, (0, y), (ANCHO, y))
+    if _DECORAR:
+        decorar, datos = _DECORAR
+        decorar(sup, datos)
     return sup
 
 
@@ -56,13 +80,15 @@ def recortar(fuente, texto, ancho, puntos="..."):
 def escribir(sup, fuente, texto, color, pos, ancla="topleft", sombra=True):
     img = fuente.render(texto, True, color)
     rect = img.get_rect(**{ancla: pos})
-    if sombra:
+    if sombra and SOMBRAS:
         sup.blit(fuente.render(texto, True, OSCURO), rect.move(2, 2))
     sup.blit(img, rect)
     return rect
 
 
-def caja(sup, rect, color=(16, 24, 72), borde=AMARILLO):
+def caja(sup, rect, color=None, borde=None):
+    color = color or CAJA
+    borde = borde or AMARILLO
     pygame.draw.rect(sup, color, rect, border_radius=10)
     pygame.draw.rect(sup, borde, rect, width=3, border_radius=10)
 
@@ -136,6 +162,17 @@ def icono(sup, nombre, x, y, color):
         pygame.draw.rect(sup, color, (x + 8, y + 1, 6, 11))
         pygame.draw.polygon(sup, color, [(x + 2, y + 10), (x + 20, y + 10), (x + 11, y + 19)])
         pygame.draw.rect(sup, color, (x + 1, y + 19, 20, 3))
+    elif nombre == "estrella":
+        puntos = []
+        for i in range(10):
+            radio = 11 if i % 2 == 0 else 5
+            ang = -1.5708 + i * 0.6283
+            puntos.append((x + 11 + radio * math.cos(ang), y + 12 + radio * math.sin(ang)))
+        pygame.draw.polygon(sup, color, puntos)
+    elif nombre == "reloj":
+        pygame.draw.circle(sup, color, (x + 11, y + 11), 10, 3)
+        pygame.draw.line(sup, color, (x + 11, y + 11), (x + 11, y + 5), 3)
+        pygame.draw.line(sup, color, (x + 11, y + 11), (x + 16, y + 13), 3)
     elif nombre == "flecha":
         pygame.draw.polygon(sup, color, [(x + 2, y + 11), (x + 12, y + 2), (x + 12, y + 20)])
         pygame.draw.rect(sup, color, (x + 11, y + 8, 10, 6))

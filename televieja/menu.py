@@ -1,5 +1,6 @@
 """TeleVieja OS: el menú que aparece al prender la netbook."""
 import array
+import math
 import os
 import subprocess
 import sys
@@ -13,7 +14,8 @@ import pygame  # noqa: E402
 from . import config, remoto, reproducir, ui  # noqa: E402
 from . import mando as mando_mod  # noqa: E402
 from .mando import Mando  # noqa: E402
-from .pantallas import (Calibrar, Confirmar, ControlCelular, Descargas, Espera, Explorador,  # noqa: E402
+from .pantallas import (Calibrar, Confirmar, ControlCelular, Descargas, ElegirTema, Espera,  # noqa: E402
+                        Explorador, Lector, Protector,
                         Item, Lista,
                         ListaSistemas, Mensaje)
 from .ui import ANCHO, ALTO, MARGEN_X, MARGEN_Y  # noqa: E402
@@ -23,23 +25,35 @@ FPS = 20
 
 
 class Sonido:
-    """Pitiditos del menú, generados acá mismo (no hacen falta archivos)."""
+    """Pitiditos del menú, generados acá mismo (no hacen falta archivos). Cambian con el tema."""
 
-    def __init__(self, activo):
+    def __init__(self, activo, tema="clasico"):
         self.activo = activo
         self.sonidos = {}
+        self.tema = tema
         self.prender()
+
+    def cambiar_tema(self, tema):
+        self.tema = tema
+        if self.sonidos:
+            self.prender()
 
     def prender(self):
         if not self.activo:
             return
+        from . import temas
+        onda, tono = temas.TEMAS.get(self.tema, temas.TEMAS["clasico"])["sonido"]
         try:
-            pygame.mixer.init(22050, -16, 1, 512)
+            if not pygame.mixer.get_init():
+                pygame.mixer.init(22050, -16, 1, 512)
             frec, _, canales = pygame.mixer.get_init()
+            # duración en milisegundos (la campanita suena más largo)
+            ms = {"mover": 70, "elegir": 220, "volver": 160} if onda == "campana" else \
+                {"mover": 25, "elegir": 60, "volver": 60}
             self.sonidos = {
-                "mover": self._tono(frec, canales, 880, 25, 0.15),
-                "elegir": self._tono(frec, canales, 1320, 60, 0.2),
-                "volver": self._tono(frec, canales, 440, 60, 0.2),
+                "mover": self._tono(frec, canales, 880 * tono, ms["mover"], 0.15, onda),
+                "elegir": self._tono(frec, canales, 1320 * tono, ms["elegir"], 0.2, onda),
+                "volver": self._tono(frec, canales, 440 * tono, ms["volver"], 0.2, onda),
             }
         except pygame.error:
             self.sonidos = {}
@@ -50,13 +64,21 @@ class Sonido:
             pygame.mixer.quit()
 
     @staticmethod
-    def _tono(frec, canales, hz, ms, volumen):
-        n = int(frec * ms / 1000)
+    def _tono(frec, canales, hz, ms, volumen, onda="cuadrada"):
+        n = max(1, int(frec * ms / 1000))
         datos = array.array("h")
-        periodo = max(2, int(frec / hz))
         for i in range(n):
-            v = int(32767 * volumen * (1 - i / n) * (1 if (i % periodo) < periodo // 2 else -1))
-            datos.extend([v] * canales)
+            fase = (i * hz / frec) % 1.0
+            if onda == "seno":
+                muestra = math.sin(2 * math.pi * fase)
+            elif onda == "triangulo":
+                muestra = 4 * abs(fase - 0.5) - 1
+            elif onda == "campana":  # seno con armónico y apagado largo, como una campanita
+                muestra = 0.7 * math.sin(2 * math.pi * fase) + 0.3 * math.sin(2 * math.pi * fase * 2.76)
+            else:
+                muestra = 1 if fase < 0.5 else -1
+            caida = math.exp(-5 * i / n) if onda == "campana" else (1 - i / n)
+            datos.extend([int(32767 * volumen * caida * muestra)] * canales)
         return pygame.mixer.Sound(buffer=datos.tobytes())
 
     def tocar(self, nombre):
@@ -69,6 +91,9 @@ class App:
     def __init__(self):
         self.opciones = config.leer_opciones()
         self.ventana = bool(os.environ.get("TELEVIEJA_VENTANA"))
+        from . import temas
+        self.tema = temas.elegir(self.opciones.get("TEMA"))
+        ui.aplicar_tema(self.tema)
         self.iniciar_pantalla()
         self.fuentes = ui.Fuentes()
         self.mando = Mando()
@@ -76,7 +101,7 @@ class App:
             mando_mod.escribir_config_retroarch()
         except OSError:
             pass
-        self.sonido = Sonido(config.opcion_si(self.opciones, "SONIDOS_MENU"))
+        self.sonido = Sonido(config.opcion_si(self.opciones, "SONIDOS_MENU"), self.tema)
         self.pila = []
         self.sucio = True
         self.ultimo_minuto = ""
@@ -87,6 +112,7 @@ class App:
         self.discos = self._ids_discos()
         self.proximo_chequeo = 0.0
         self.servidor_celular = None
+        self.ultima_actividad = time.monotonic()
         if config.opcion_si(self.opciones, "CONTROL_CELULAR"):
             try:
                 puerto = int(self.opciones.get("PUERTO_CELULAR", "8080"))
@@ -113,18 +139,28 @@ class App:
         self.fondo = ui.fondo()
         self.sucio = True
 
-    def mostrar(self):
+    def aplicar_tema(self, nombre):
+        """Cambia el tema al instante (colores, adornos y sonidos)."""
+        self.tema = nombre
+        ui.aplicar_tema(nombre)
+        self.fondo = ui.fondo()
+        self.sonido.cambiar_tema(nombre)
+        self.sucio = True
+
+    def mostrar(self, imagen=None):
+        if imagen is None:
+            imagen = self.lienzo
         destino = self.pantalla.get_size()
         if destino == (ANCHO, ALTO):
-            self.pantalla.blit(self.lienzo, (0, 0))
+            self.pantalla.blit(imagen, (0, 0))
         elif destino in ((720, 480), (720, 576)):
             # Resoluciones de tele (por HDMI): la tele las muestra en 4:3, así que se estira todo.
-            self.pantalla.blit(pygame.transform.scale(self.lienzo, destino), (0, 0))
+            self.pantalla.blit(pygame.transform.scale(imagen, destino), (0, 0))
         else:  # pantalla de la netbook: agrandamos manteniendo 4:3
             escala = min(destino[0] / ANCHO, destino[1] / ALTO)
             tam = (int(ANCHO * escala), int(ALTO * escala))
             self.pantalla.fill((0, 0, 0))
-            self.pantalla.blit(pygame.transform.scale(self.lienzo, tam),
+            self.pantalla.blit(pygame.transform.scale(imagen, tam),
                                ((destino[0] - tam[0]) // 2, (destino[1] - tam[1]) // 2))
         pygame.display.flip()
 
@@ -159,8 +195,10 @@ class App:
         sup.blit(self.fondo, (0, 0))
         f = self.fuentes
         # franjas de colores, bien de los 80
+        alto_franja = 35 // len(ui.FRANJAS)
         for i, color in enumerate(ui.FRANJAS):
-            pygame.draw.rect(sup, color, (MARGEN_X, MARGEN_Y + 4 + i * 7, 26, 5))
+            pygame.draw.rect(sup, color, (MARGEN_X, MARGEN_Y + 4 + i * alto_franja, 26,
+                                          max(2, alto_franja - 2)))
         titulo = ui.recortar(f.titulo, p.titulo or "", ANCHO - 2 * MARGEN_X - 130, f.puntos)
         ui.escribir(sup, f.titulo, titulo, ui.AMARILLO, (MARGEN_X + 38, MARGEN_Y))
         ui.escribir(sup, f.item, time.strftime("%H:%M"), ui.BLANCO, (ANCHO - MARGEN_X, MARGEN_Y + 4),
@@ -195,6 +233,18 @@ class App:
         self.discos = discos
         self.actual.al_volver(self)
         self.sucio = True
+
+    def revisar_protector(self):
+        """Después de un rato sin tocar nada, el protector de pantalla."""
+        try:
+            minutos = float(self.opciones.get("PROTECTOR_MINUTOS", "5"))
+        except ValueError:
+            minutos = 5
+        if minutos <= 0 or time.monotonic() - self.ultima_actividad < minutos * 60:
+            return
+        if isinstance(self.actual, (Protector, Lector, Calibrar, Espera)):
+            return  # leyendo una historieta, configurando o esperando algo: no molestar
+        self.poner(Protector(self.opciones.get("NOMBRE_CANAL", "TELE VIEJA")))
 
     def avisar(self, texto, segundos=3.0):
         self.aviso = texto
@@ -257,6 +307,7 @@ class App:
                 pidio_salir = time.monotonic()
             time.sleep(0.03)
         duracion = time.monotonic() - inicio
+        self.ultima_actividad = time.monotonic()
         self.mando.soltar_todo()
         pygame.event.clear()
         self.sonido.prender()
@@ -278,14 +329,29 @@ class App:
         elif rc not in (0, 4) and duracion < 4:
             self.poner(Mensaje("No se pudo reproducir", self._ultimas_lineas("video")))
 
-    def jugar(self, core, rom):
+    def jugar(self, core, rom, sistema=None):
         orden = reproducir.orden_juego(core, rom)
         rc, duracion, error = self.lanzar(orden, None, "juego", combo_salida=True,
                                           control_remoto=reproducir.control_juego_remoto)
+        if rc is not None and (rc == 0 or duracion >= 5) and sistema:
+            from . import favoritos
+            favoritos.registrar_jugado(rom, sistema)
         if rc is None:
             self.poner(Mensaje("Falta RetroArch", error))
         elif rc != 0 and duracion < 5:
             self.poner(Mensaje("No se pudo abrir el juego", self._ultimas_lineas("juego")))
+
+    def jugar_entrada(self, entrada):
+        """Jugar algo de Favoritos o Últimos jugados."""
+        if entrada["sistema"] == "pc":
+            self.jugar_pc(entrada["rom"])
+            return
+        sistema = next((s for s in config.SISTEMAS if s["id"] == entrada["sistema"]), None)
+        core = config.buscar_core(sistema["cores"]) if sistema else None
+        if not core:
+            self.poner(Mensaje("Falta el emulador", "No encontré el emulador de ese juego."))
+            return
+        self.jugar(core, entrada["rom"], entrada["sistema"])
 
     def jugar_pc(self, carpeta):
         """Juego viejo de Windows con Wine (la primera vez prepara Wine)."""
@@ -306,13 +372,13 @@ class App:
                 if error:
                     app.poner(Mensaje("No se pudo preparar Wine", str(error)))
                 else:
-                    app._abrir_pc(exe)
+                    app._abrir_pc(exe, carpeta)
             self.poner(Espera("Juegos de PC", "Preparando Wine (solo la primera vez)...",
                               wine.preparar, listo))
             return
-        self._abrir_pc(exe)
+        self._abrir_pc(exe, carpeta)
 
-    def _abrir_pc(self, exe):
+    def _abrir_pc(self, exe, carpeta=None):
         from . import wine
         ancho, alto = self.pantalla.get_size()
         escritorio = config.opcion_si(self.opciones, "PC_ESCRITORIO_VIRTUAL")
@@ -327,6 +393,9 @@ class App:
         rc, duracion, error = self.lanzar(orden, None, "pc", combo_salida=True,
                                           control_remoto=control_pc, cwd=os.path.dirname(exe),
                                           env=wine.entorno(), cortar=wine.cortar)
+        if rc is not None and (rc == 0 or duracion >= 5) and carpeta:
+            from . import favoritos
+            favoritos.registrar_jugado(carpeta, "pc")
         if rc is None:
             self.poner(Mensaje("Falta Wine", error))
         elif rc != 0 and duracion < 5:
@@ -339,7 +408,10 @@ class App:
                                "Poné videos en TeleVieja/Canal/Programas (y publicidades viejas "
                                "en TeleVieja/Canal/Tandas)."))
             return
-        self.lanzar_mpv(reproducir.orden_canal(self.opciones, lista), reproducir.control_canal)
+        from . import temas
+        datos = temas.TEMAS.get(self.tema, temas.TEMAS["clasico"])
+        color = temas.color_ass(datos.get("logo", datos["acento"]))
+        self.lanzar_mpv(reproducir.orden_canal(self.opciones, lista, color), reproducir.control_canal)
 
     def volumen(self, boton):
         """Volumen de la netbook (sirve para todo: menú, videos y juegos)."""
@@ -379,6 +451,10 @@ class App:
         self.iniciar_pantalla()
 
     def sistema(self, accion):
+        if config.opcion_si(self.opciones, "EFECTO_ENCENDIDO"):
+            from . import efectos
+            self._dibujar(self.actual, self.lienzo)
+            efectos.animar(self, efectos.cuadro_apagado, self.lienzo.copy(), 0.8)
         r = subprocess.run(["sudo", "-n", "systemctl", accion], capture_output=True, text=True)
         if r.returncode != 0:
             self.poner(Mensaje("No se pudo", r.stderr.strip() or "Error"))
@@ -390,6 +466,11 @@ class App:
     # --- bucle principal --------------------------------------------------------
     def correr(self):
         reloj = pygame.time.Clock()
+        if config.opcion_si(self.opciones, "EFECTO_ENCENDIDO"):
+            from . import efectos
+            self._dibujar(self.actual, self.lienzo)
+            efectos.animar(self, efectos.cuadro_encendido, self.lienzo.copy(), 0.9)
+            self.sucio = True
         if self.opciones.get("ARRANCAR_EN", "menu").lower() == "canal":
             self.canal()
         while self.corriendo:
@@ -415,12 +496,14 @@ class App:
                 self.actual.evento(self, ev)
                 continue
             for b in botones:
+                self.ultima_actividad = time.monotonic()
                 if not self.boton_global(b):
                     self.actual.accion(self, b)
         if not self.actual.crudo:
             for b in self.mando.repeticiones():
                 self.actual.accion(self, b)
         self.actual.actualizar(self, dt)
+        self.revisar_protector()
         self.revisar_discos()
         if remoto.gestor:
             novedades = remoto.gestor.tomar_novedades()
@@ -437,7 +520,7 @@ class App:
         if self.sucio:
             self.sucio = False
             self._dibujar(self.actual, self.lienzo)
-            if self.aviso:
+            if self.aviso and not isinstance(self.actual, Protector):
                 self._dibujar_aviso(self.lienzo)
             self.mostrar()
 
@@ -457,6 +540,7 @@ def menu_principal(app):
 
     opciones = Lista("Opciones", [
         Item("Configurar joystick", ir(lambda: Calibrar()), icono="joystick"),
+        Item("Tema", ir(ElegirTema), icono="engranaje"),
         Item("Control desde el celular", ir(ControlCelular), icono="celular"),
         Item("Descargas", ir(Descargas), icono="bajar"),
         Item("Cambiar pantalla (tele / netbook)", lambda app: app.cambiar_pantalla(), icono="tele"),

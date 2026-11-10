@@ -29,6 +29,7 @@ TECLAS = {
     pygame.K_ESCAPE: "b", pygame.K_BACKSPACE: "b",
     pygame.K_PAGEUP: "l", pygame.K_PAGEDOWN: "r",
     pygame.K_TAB: "select", pygame.K_F1: "start",
+    pygame.K_F2: "x", pygame.K_INSERT: "x",
 }
 # Controles remotos USB ("air mouse" de los TV Box): mandan estas teclas especiales.
 for _nombre, _boton in {

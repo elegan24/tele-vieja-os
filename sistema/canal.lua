@@ -1,7 +1,7 @@
 -- Canal Retro: logo del canal y hora en la esquina, como la tele de antes.
 -- Lo carga TeleVieja solo cuando se mira el canal.
 
-local opts = { nombre = "TELE VIEJA", reloj = "si", empezado = "si" }
+local opts = { nombre = "TELE VIEJA", reloj = "si", empezado = "si", color = "&HFFFFFF&" }
 require("mp.options").read_options(opts, "canal")
 
 local logo = mp.create_osd_overlay("ass-events")
@@ -24,7 +24,9 @@ local function dibujar_logo()
         return
     end
     logo.res_x, logo.res_y = W, H
-    local estilo = "{\\an9\\pos(%d,%d)\\fs%d\\b1\\bord2\\shad1\\1c&HFFFFFF&\\3c&H202020&\\alpha&H60&}"
+    -- el color del logo lo pone el tema del menú
+    local estilo = "{\\an9\\pos(%d,%d)\\fs%d\\b1\\bord2\\shad1\\1c" .. opts.color ..
+                   "\\3c&H202020&\\alpha&H60&}"
     local texto = string.format(estilo, W - MX, MY, 22) .. opts.nombre
     if opts.reloj == "si" then
         texto = texto .. "\n" .. string.format(estilo, W - MX, MY + 26, 20) .. os.date("%H:%M")

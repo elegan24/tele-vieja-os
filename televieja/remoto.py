@@ -60,6 +60,19 @@ class _Manejador(BaseHTTPRequestHandler):
             self._pagina(PAGINA_JOYSTICK)
         elif self.path == "/ws":
             self._websocket()
+        elif self.path == "/manifest.json":
+            self._json(200, MANIFIESTO)
+        elif re.match(r"^/icono-(180|192|512)\.png$", self.path):
+            datos = ICONOS.get(int(self.path[7:10]))
+            if not datos:
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(datos)))
+            self.send_header("Cache-Control", "max-age=86400")
+            self.end_headers()
+            self.wfile.write(datos)
         elif self.path == "/descargas":
             self._json(200, {"descargas": gestor.lista() if gestor else [],
                              "disponible": gestor is not None})
@@ -204,8 +217,62 @@ class _Manejador(BaseHTTPRequestHandler):
         pass
 
 
+MANIFIESTO = {
+    "name": "TeleVieja", "short_name": "TeleVieja",
+    "description": "Control remoto de la TeleVieja",
+    "start_url": "/", "scope": "/", "display": "standalone", "orientation": "any",
+    "background_color": "#0c1240", "theme_color": "#0c1240",
+    "icons": [
+        {"src": "/icono-192.png", "sizes": "192x192", "type": "image/png"},
+        {"src": "/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+    ],
+}
+ICONOS = {}
+
+
+def dibujar_icono(lado):
+    """Una tele de tubo con antena y barras de color, sobre el azul de TeleVieja."""
+    s = pygame.Surface((lado, lado))
+    s.fill((12, 18, 64))
+    u = lado / 100.0  # todo en "porcentaje" del ícono
+
+    def r(x, y, w, h):
+        return pygame.Rect(int(x * u), int(y * u), max(1, int(w * u)), max(1, int(h * u)))
+
+    pygame.draw.line(s, (236, 236, 236), (int(50 * u), int(30 * u)), (int(34 * u), int(14 * u)), max(2, int(3 * u)))
+    pygame.draw.line(s, (236, 236, 236), (int(50 * u), int(30 * u)), (int(66 * u), int(14 * u)), max(2, int(3 * u)))
+    pygame.draw.rect(s, (255, 212, 60), r(16, 28, 68, 54), border_radius=int(10 * u))
+    pantalla = r(23, 35, 44, 40)
+    barras = ((235, 235, 235), (235, 235, 16), (16, 235, 235), (16, 235, 16),
+              (235, 16, 235), (235, 16, 16), (16, 16, 235))
+    ancho = pantalla.width / len(barras)
+    for i, color in enumerate(barras):
+        pygame.draw.rect(s, color, (pantalla.x + int(i * ancho), pantalla.y, int(ancho) + 1, pantalla.height))
+    pygame.draw.rect(s, (10, 14, 40), pantalla, max(2, int(2 * u)), border_radius=int(5 * u))
+    for y in (42, 56):
+        pygame.draw.circle(s, (10, 14, 40), (int(75 * u), int(y * u)), max(2, int(4 * u)))
+    return s
+
+
+def _preparar_iconos():
+    """Arma los íconos una vez, al arrancar (pygame dibuja; se guardan como PNG)."""
+    import os
+    import tempfile
+    for lado in (180, 192, 512):
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+                ruta = f.name
+            pygame.image.save(dibujar_icono(lado), ruta)
+            with open(ruta, "rb") as f:
+                ICONOS[lado] = f.read()
+            os.remove(ruta)
+        except (pygame.error, OSError):
+            pass
+
+
 def iniciar(puerto):
     """Arranca el servidor en segundo plano. Devuelve el servidor o None si no se pudo."""
+    _preparar_iconos()
     try:
         servidor = ThreadingHTTPServer(("0.0.0.0", puerto), _Manejador)
     except OSError:
@@ -221,6 +288,11 @@ PAGINA = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <meta name="theme-color" content="#0c1240">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" href="/icono-192.png">
+<link rel="apple-touch-icon" href="/icono-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TeleVieja">
 <title>TeleVieja</title>
 <style>
   :root { --fondo:#0c1240; --boton:#1f2f7a; --borde:#3a4ca8; --amarillo:#ffd43c; --texto:#ececec; }
@@ -407,6 +479,11 @@ PAGINA_JOYSTICK = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0c1240">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" href="/icono-192.png">
+<link rel="apple-touch-icon" href="/icono-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TeleVieja">
 <meta name="mobile-web-app-capable" content="yes">
 <title>TeleVieja · Joystick</title>
 <style>
