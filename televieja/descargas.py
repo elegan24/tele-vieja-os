@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import threading
 import time
@@ -56,11 +57,45 @@ def validar(url):
     return url
 
 
+ESTADOS_ACTIVOS = ("esperando", "bajando", "acomodando", "reintentar")
+# Cuándo reintentar (minutos), según qué pasó. Lo ya bajado no se vuelve a bajar.
+ESPERAS = {
+    "red": [2, 5, 15, 30, 60, 120],          # se cortó internet, se colgó algo
+    "cuota": [180, 180, 240, 360, 480, 720],  # Google frenó por "cuota": esperar horas
+}
+
+
+def hay_internet():
+    for host in ("drive.google.com", "www.google.com"):
+        try:
+            socket.create_connection((host, 443), timeout=8).close()
+            return True
+        except OSError:
+            continue
+    return False
+
+
+def clasificar(textos):
+    """Qué tipo de problema hubo: cuota, permiso, disco o red (lo demás se trata como red)."""
+    junto = " ".join(textos).lower()
+    if "compartido" in junto or "permission" in junto or "público" in junto:
+        return "permiso"
+    if "disco" in junto or "no space" in junto:
+        return "disco"
+    if "cuota" in junto or "too many users" in junto or "demasiadas veces" in junto:
+        return "cuota"
+    return "red"
+
+
 class Trabajo:
-    def __init__(self, url):
-        self.id = next(_numeros)
+    CAMPOS = ("id", "url", "estado", "nombre", "archivo", "total", "porcentaje", "mensaje",
+              "avisos", "resumen", "creado", "intentos", "proximo", "solo_acomodar")
+
+    def __init__(self, url, ident=None):
+        self.id = ident if ident is not None else next(_numeros)
         self.url = url
-        self.estado = "esperando"   # esperando, bajando, acomodando, listo, error, cancelado
+        # esperando, bajando, acomodando, reintentar, listo, error, cancelado
+        self.estado = "esperando"
         self.nombre = "Drive" if es_drive(url) else os.path.basename(urllib.parse.urlparse(url).path) or url
         self.archivo = 0
         self.total = 0
@@ -73,58 +108,136 @@ class Trabajo:
         self.creado = time.time()
         self.carpetas_leidas = 0    # mientras Google da la lista de una carpeta grande
         self.archivos_vistos = 0
+        self.intentos = 0           # cuántas veces se reintentó
+        self.proximo = 0.0          # cuándo reintentar (hora en segundos)
+        self.solo_acomodar = False  # se cortó mientras acomodaba: no hace falta bajar de nuevo
+
+    def a_guardar(self):
+        return {c: getattr(self, c) for c in self.CAMPOS}
+
+    @classmethod
+    def desde(cls, datos):
+        t = cls(datos["url"], datos["id"])
+        for c in cls.CAMPOS:
+            if c in datos:
+                setattr(t, c, datos[c])
+        return t
 
     def como_dict(self):
+        actual = self.actual
+        if self.estado == "reintentar":
+            actual = "Reintenta a las %s" % time.strftime("%H:%M", time.localtime(self.proximo))
         return {
             "id": self.id, "url": self.url, "estado": self.estado, "nombre": self.nombre,
             "archivo": self.archivo, "total": self.total, "porcentaje": self.porcentaje,
-            "actual": self.actual, "mensaje": self.mensaje, "avisos": self.avisos[-3:],
+            "actual": actual, "mensaje": self.mensaje, "avisos": self.avisos[-3:],
             "carpetas_leidas": self.carpetas_leidas, "archivos_vistos": self.archivos_vistos,
             "resumen": acomodar.describir(self.resumen) if self.resumen else "",
+            "intentos": self.intentos,
         }
 
 
 class Gestor:
-    def __init__(self, raiz=None):
+    """Fila de descargas. Se guarda en disco: si se reinicia la netbook, sigue sola."""
+
+    def __init__(self, raiz=None, archivo=None, esperas=None, internet=None):
         self.raiz = raiz or config.RAIZ
         self.temporal = os.path.join(self.raiz, "Descargas", ".bajando")
+        self.archivo = archivo or os.path.join(config.CONFIG_DIR, "descargas.json")
+        self.esperas = esperas or ESPERAS
+        self.internet = internet or hay_internet
         self.trabajos = []
         self.lock = threading.Lock()
         self.hay_trabajo = threading.Event()
         self.novedades = []         # avisos para mostrar en la tele
+        self.sin_internet = False
+        self._ultimo_guardado = 0.0
+        self._cargar()
         threading.Thread(target=self._trabajar, daemon=True).start()
+
+    # --- guardar y cargar la fila ------------------------------------------------
+    def _cargar(self):
+        global _numeros
+        try:
+            with open(self.archivo, encoding="utf-8") as f:
+                guardados = json.load(f)
+        except (OSError, ValueError):
+            guardados = []
+        for datos in guardados:
+            try:
+                t = Trabajo.desde(datos)
+            except (KeyError, TypeError):
+                continue
+            if t.estado == "bajando":
+                t.estado = "esperando"           # se cortó a la mitad: sigue desde donde quedó
+            elif t.estado == "acomodando":
+                t.estado = "esperando"
+                t.solo_acomodar = True           # ya estaba todo bajado
+            self.trabajos.append(t)
+        if self.trabajos:
+            _numeros = itertools.count(max(t.id for t in self.trabajos) + 1)
+
+    def _guardar(self, forzar=True):
+        ahora = time.time()
+        if not forzar and ahora - self._ultimo_guardado < 15:
+            return
+        self._ultimo_guardado = ahora
+        with self.lock:
+            # las activas siempre; de las terminadas, solo las últimas 30
+            activas = [t for t in self.trabajos if t.estado in ESTADOS_ACTIVOS]
+            terminadas = [t for t in self.trabajos if t.estado not in ESTADOS_ACTIVOS][-30:]
+            self.trabajos = [t for t in self.trabajos if t in activas or t in terminadas]
+            datos = [t.a_guardar() for t in self.trabajos]
+        try:
+            os.makedirs(os.path.dirname(self.archivo), exist_ok=True)
+            tmp = self.archivo + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(datos, f, ensure_ascii=False)
+            os.replace(tmp, self.archivo)
+        except OSError:
+            pass
 
     # --- lo que usan la página del celu y el menú ------------------------------
     def agregar(self, url):
         url = validar(url)
         with self.lock:
             for t in self.trabajos:
-                if t.url == url and t.estado in ("esperando", "bajando", "acomodando"):
-                    raise ValueError("Ese link ya se está bajando.")
+                if t.url == url and t.estado in ESTADOS_ACTIVOS:
+                    raise ValueError("Ese link ya está en la lista.")
             trabajo = Trabajo(url)
             self.trabajos.append(trabajo)
-            self.trabajos = self.trabajos[-30:]  # no acumular para siempre
+        self._guardar()
         self.hay_trabajo.set()
         return trabajo
 
     def cancelar(self, ident):
         with self.lock:
             for t in self.trabajos:
-                if t.id == ident and t.estado in ("esperando", "bajando"):
+                if t.id == ident and t.estado in ("esperando", "bajando", "reintentar"):
                     t.estado = "cancelado"
                     t.mensaje = "Cancelada."
                     if t.proceso:
                         t.proceso.terminate()
-                    return True
-        return False
+                    else:
+                        shutil.rmtree(os.path.join(self.temporal, str(t.id)), ignore_errors=True)
+                    break
+            else:
+                return False
+        self._guardar()
+        return True
 
     def lista(self):
         with self.lock:
-            return [t.como_dict() for t in reversed(self.trabajos)]
+            lista = [t.como_dict() for t in reversed(self.trabajos)]
+        if self.sin_internet:
+            for d in lista:
+                if d["estado"] in ("esperando", "reintentar"):
+                    d["actual"] = "Esperando que vuelva internet..."
+        return lista
 
     def activos(self):
         with self.lock:
-            return sum(1 for t in self.trabajos if t.estado in ("esperando", "bajando", "acomodando"))
+            return sum(1 for t in self.trabajos if t.estado in ESTADOS_ACTIVOS)
 
     def tomar_novedades(self):
         with self.lock:
@@ -133,51 +246,109 @@ class Gestor:
 
     # --- el trabajo en sí (en segundo plano) -----------------------------------
     def _siguiente(self):
+        ahora = time.time()
         with self.lock:
-            for t in self.trabajos:
-                if t.estado == "esperando":
-                    t.estado = "bajando"
-                    return t
-        return None
+            listas = [t for t in self.trabajos
+                      if t.estado == "esperando" or (t.estado == "reintentar" and t.proximo <= ahora)]
+        # Primero lo que ya está bajado y solo falta acomodar (no necesita internet).
+        for t in listas:
+            if t.solo_acomodar:
+                return t
+        return listas[0] if listas else None
+
+    def _hasta_el_proximo(self):
+        """Cuánto dormir: hasta el próximo reintento (como mucho 20 segundos)."""
+        with self.lock:
+            proximos = [t.proximo for t in self.trabajos if t.estado == "reintentar"]
+        if not proximos:
+            return 20
+        return max(0.05, min(20, min(proximos) - time.time()))
 
     def _trabajar(self):
         while True:
             trabajo = self._siguiente()
             if trabajo is None:
-                self.hay_trabajo.wait(timeout=5)
+                self.hay_trabajo.wait(timeout=self._hasta_el_proximo())
                 self.hay_trabajo.clear()
                 continue
-            carpeta = os.path.join(self.temporal, str(trabajo.id))
-            try:
-                os.makedirs(carpeta, exist_ok=True)
-                if es_drive(trabajo.url):
-                    ok = self._bajar_drive(trabajo, carpeta)
-                else:
-                    ok = self._bajar_directo(trabajo, carpeta)
+            if not trabajo.solo_acomodar and not self.internet():
+                self.sin_internet = True   # no se gasta un intento: espera y vuelve a probar
+                self.hay_trabajo.wait(timeout=30)
+                self.hay_trabajo.clear()
+                continue
+            self.sin_internet = False
+            with self.lock:
                 if trabajo.estado == "cancelado":
-                    shutil.rmtree(carpeta, ignore_errors=True)
                     continue
-                if not ok and not _hay_archivos(carpeta):
-                    trabajo.estado = "error"
-                    trabajo.mensaje = trabajo.mensaje or "No se pudo bajar."
-                    shutil.rmtree(carpeta, ignore_errors=True)
-                    self._novedad("No se pudo bajar %s: %s" % (trabajo.nombre, trabajo.mensaje))
-                    continue
-                trabajo.estado = "acomodando"
-                trabajo.actual = ""
-
-                def avisar(texto):
-                    trabajo.actual = texto
-                trabajo.resumen = acomodar.acomodar(carpeta, self.raiz, avisar)
-                trabajo.estado = "listo"
-                if not ok:  # se bajó una parte: igual se acomoda lo que llegó
-                    trabajo.mensaje = trabajo.mensaje or "Algunos archivos no se pudieron bajar."
-                self._novedad("Descarga lista: %s (%s)" % (trabajo.nombre,
-                                                          acomodar.describir(trabajo.resumen)))
+                trabajo.estado = "bajando"
+            self._guardar()
+            try:
+                self._hacer(trabajo)
             except Exception as e:  # noqa: BLE001 - que una descarga rota no frene las demás
-                trabajo.estado = "error"
                 trabajo.mensaje = str(e)[:200]
-                self._novedad("Falló la descarga de %s" % trabajo.nombre)
+                self._fallo(trabajo, os.path.join(self.temporal, str(trabajo.id)))
+            self._guardar()
+
+    def _hacer(self, trabajo):
+        carpeta = os.path.join(self.temporal, str(trabajo.id))
+        os.makedirs(carpeta, exist_ok=True)
+        ok = True
+        if not trabajo.solo_acomodar:
+            trabajo.mensaje = ""
+            trabajo.avisos = []
+            if es_drive(trabajo.url):
+                ok = self._bajar_drive(trabajo, carpeta)
+            else:
+                ok = self._bajar_directo(trabajo, carpeta)
+        if trabajo.estado == "cancelado":
+            shutil.rmtree(carpeta, ignore_errors=True)
+            return
+        if ok:
+            self._acomodar(trabajo, carpeta)
+        else:
+            self._fallo(trabajo, carpeta)
+
+    def _acomodar(self, trabajo, carpeta, faltaron=False):
+        trabajo.estado = "acomodando"
+        trabajo.solo_acomodar = True
+        trabajo.actual = ""
+        self._guardar()
+
+        def avisar(texto):
+            trabajo.actual = texto
+        trabajo.resumen = acomodar.acomodar(carpeta, self.raiz, avisar)
+        trabajo.estado = "listo"
+        trabajo.solo_acomodar = False
+        if faltaron:
+            self._novedad("Descarga terminada con faltantes: %s" % trabajo.nombre)
+        else:
+            trabajo.mensaje = ""
+            self._novedad("Descarga lista: %s (%s)" % (trabajo.nombre,
+                                                      acomodar.describir(trabajo.resumen)))
+
+    def _fallo(self, trabajo, carpeta):
+        """Algo no se bajó: según qué pasó, se reintenta más tarde o se da por terminada."""
+        tipo = clasificar([trabajo.mensaje] + trabajo.avisos)
+        esperas = self.esperas.get(tipo)
+        if esperas and trabajo.intentos < len(esperas):
+            minutos = esperas[trabajo.intentos]
+            trabajo.intentos += 1
+            trabajo.estado = "reintentar"
+            trabajo.proximo = time.time() + minutos * 60
+            trabajo.mensaje = ("Google frenó la descarga (cuota). " if tipo == "cuota" else
+                               "Se cortó la descarga. ") + \
+                "Lo ya bajado se guarda; reintenta sola (intento %d de %d)." % (
+                    trabajo.intentos, len(esperas))
+            return
+        # sin más reintentos (o no tiene sentido reintentar): se acomoda lo que llegó
+        if _hay_archivos(carpeta):
+            trabajo.mensaje = (trabajo.mensaje or "Algunos archivos no se pudieron bajar.")
+            self._acomodar(trabajo, carpeta, faltaron=True)
+        else:
+            trabajo.estado = "error"
+            trabajo.mensaje = trabajo.mensaje or "No se pudo bajar."
+            shutil.rmtree(carpeta, ignore_errors=True)
+            self._novedad("No se pudo bajar %s: %s" % (trabajo.nombre, trabajo.mensaje))
 
     def _novedad(self, texto):
         with self.lock:
@@ -213,6 +384,7 @@ class Gestor:
                             "Google muestra solo 50 archivos por carpeta: puede que falten "
                             "algunos. Pegá el link de cada subcarpeta para bajar el resto.")
                 if "archivo" in datos:
+                    self._guardar(forzar=False)
                     trabajo.archivo = datos["archivo"]       # cuántos van hechos
                     trabajo.actual = os.path.basename(datos.get("ruta", ""))
                     if trabajo.total > 1:  # porcentaje de TODA la descarga
@@ -243,33 +415,51 @@ class Gestor:
         return proceso.returncode == 0 and not trabajo.mensaje
 
     def _bajar_directo(self, trabajo, carpeta):
-        """Links que no son de Drive: se bajan tal cual (por ejemplo un .zip de una página)."""
-        try:
-            pedido = urllib.request.Request(trabajo.url, headers={"User-Agent": "TeleVieja"})
-            with urllib.request.urlopen(pedido, timeout=60) as r:
-                nombre = _nombre_de_respuesta(r, trabajo.url)
-                trabajo.nombre = nombre
-                trabajo.total = 1
-                trabajo.archivo = 1
-                trabajo.actual = nombre
-                largo = int(r.headers.get("Content-Length") or 0)
-                bajado = 0
-                destino = os.path.join(carpeta, nombre)
-                with open(destino, "wb") as f:
-                    while trabajo.estado != "cancelado":
-                        bloque = r.read(256 * 1024)
-                        if not bloque:
-                            break
-                        f.write(bloque)
-                        bajado += len(bloque)
-                        if largo:
-                            trabajo.porcentaje = min(100, bajado * 100 // largo)
-                        if shutil.disk_usage(carpeta).free < 500 * 1024 * 1024:
-                            raise OSError("Se llenó el disco.")
-            return trabajo.estado != "cancelado"
-        except Exception as e:  # noqa: BLE001
-            trabajo.mensaje = str(e)[:200]
+        """Links que no son de Drive. Si se corta, sigue desde donde quedó (si el sitio deja)."""
+        for intento in range(3):
+            try:
+                return self._bajar_directo_una_vez(trabajo, carpeta)
+            except Exception as e:  # noqa: BLE001
+                trabajo.mensaje = str(e)[:200]
+                if trabajo.estado == "cancelado" or clasificar([trabajo.mensaje]) == "disco":
+                    return False
+                time.sleep(5 * (intento + 1))
+        return False
+
+    def _bajar_directo_una_vez(self, trabajo, carpeta):
+        partes = [a for a in os.listdir(carpeta) if a.endswith(".part")]
+        ya = os.path.getsize(os.path.join(carpeta, partes[0])) if partes else 0
+        cabeceras = {"User-Agent": "TeleVieja"}
+        if ya:
+            cabeceras["Range"] = "bytes=%d-" % ya
+        pedido = urllib.request.Request(trabajo.url, headers=cabeceras)
+        with urllib.request.urlopen(pedido, timeout=60) as r:
+            nombre = partes[0][:-5] if partes else _nombre_de_respuesta(r, trabajo.url)
+            parcial = os.path.join(carpeta, nombre + ".part")
+            continuar = ya and r.status == 206
+            trabajo.nombre = nombre
+            trabajo.total = 1
+            trabajo.archivo = 1
+            trabajo.actual = nombre
+            largo = int(r.headers.get("Content-Length") or 0) + (ya if continuar else 0)
+            bajado = ya if continuar else 0
+            with open(parcial, "ab" if continuar else "wb") as f:
+                while trabajo.estado != "cancelado":
+                    bloque = r.read(256 * 1024)
+                    if not bloque:
+                        break
+                    f.write(bloque)
+                    bajado += len(bloque)
+                    if largo:
+                        trabajo.porcentaje = min(100, bajado * 100 // largo)
+                    if shutil.disk_usage(carpeta).free < 500 * 1024 * 1024:
+                        raise OSError("Se llenó el disco.")
+        if trabajo.estado == "cancelado":
             return False
+        if largo and bajado < largo:
+            raise OSError("Se cortó la descarga (llegó %d de %d bytes)." % (bajado, largo))
+        os.replace(parcial, os.path.join(carpeta, nombre))
+        return True
 
 
 def _nombre_de_respuesta(respuesta, url):

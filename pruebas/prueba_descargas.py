@@ -135,7 +135,7 @@ def probar_gestor():
         f.write(FALSO)
     descargas.PYTHON_DRIVE = sys.executable
     descargas.BAJAR_DRIVE = falso
-    g = descargas.Gestor(R)
+    g = descargas.Gestor(R, archivo=os.path.join(TMP, "fila1.json"), internet=lambda: True)
     for mf in ("https://www.mediafire.com/file/abc123/juego.zip/file",
                "https://www.mediafire.com/folder/abc123/Pack"):
         try:
@@ -175,8 +175,134 @@ def probar_gestor():
     assert novedades and "Descarga lista: Dibujitos" in novedades[0], novedades
     t2 = g.agregar("https://drive.google.com/file/d/roto/view")
     d2 = esperar(g, t2.id)
-    assert d2["estado"] == "error" and "compartido" in d2["mensaje"], d2
+    assert d2["estado"] == "error" and "compartido" in d2["mensaje"], d2   # sin reintentos
+    assert d2["intentos"] == 0, d2
     return g
+
+
+FALSO_CORTES = r'''
+import json, os, sys
+url, destino = sys.argv[1], sys.argv[2]
+def ev(**d): print("@@ " + json.dumps(d), flush=True)
+contador = os.path.join(os.path.dirname(destino), "veces-" + os.path.basename(destino))
+veces = int(open(contador).read()) if os.path.exists(contador) else 0
+open(contador, "w").write(str(veces + 1))
+if "nollamar" in url:
+    ev(error="no tenía que bajar de nuevo"); sys.exit(1)
+ev(nombre="Serie")
+ev(total=3, incompletas=0)
+carpeta = os.path.join(destino, "Serie")
+os.makedirs(carpeta, exist_ok=True)
+hechos = 0
+fallados = 0
+for i in (1, 2, 3):
+    ruta = os.path.join(carpeta, "Cap %d.mp4" % i)
+    if os.path.exists(ruta):
+        hechos += 1; ev(archivo=hechos, de=3, ruta=os.path.basename(ruta)); continue
+    if i == 3 and veces == 0:   # la primera vez el tercero falla
+        motivo = "Google frenó la descarga: cuota" if "cuota" in url else "Connection reset by peer"
+        open(ruta + ".part", "w").write("medio")
+        fallados += 1; ev(aviso=motivo, ruta="Cap 3.mp4"); continue
+    open(ruta, "w").write("v%d" % veces)
+    hechos += 1; ev(archivo=hechos, de=3, ruta=os.path.basename(ruta))
+ev(listo=3 - fallados, fallados=fallados)
+'''
+
+
+def probar_reintentos_y_fila():
+    falso = os.path.join(TMP, "falso_cortes.py")
+    with open(falso, "w") as f:
+        f.write(FALSO_CORTES)
+    descargas.BAJAR_DRIVE = falso
+    rapido = {"red": [0.002, 0.002], "cuota": [0.004]}   # en minutos: para la prueba, casi ya
+    fila = os.path.join(TMP, "fila2.json")
+    g = descargas.Gestor(R, archivo=fila, esperas=rapido, internet=lambda: True)
+    # 1) se corta el WiFi en el tercer capítulo: reintenta solo y no vuelve a bajar los dos primeros
+    t = g.agregar("https://drive.google.com/drive/folders/CORTE")
+    d = esperar(g, t.id, estados=("reintentar",), limite=10)
+    assert "reintenta sola" in d["mensaje"], d
+    d = esperar(g, t.id)
+    assert d["estado"] == "listo" and d["intentos"] == 1, d
+    for i in (1, 2):   # los primeros dos son de la primera vez (no se bajaron de nuevo)
+        assert open(os.path.join(R, "Videos", "Serie", "Cap %d.mp4" % i)).read() == "v0"
+    assert existe("Videos", "Serie", "Cap 3.mp4")
+    assert not existe("Videos", "Serie", "Cap 3.mp4.part"), "el .part tenía que descartarse"
+    # 2) cuota de Google: también reintenta (y queda guardado en el archivo de la fila)
+    t = g.agregar("https://drive.google.com/drive/folders/cuota")
+    d = esperar(g, t.id, estados=("reintentar",), limite=10)
+    assert "cuota" in d["mensaje"], d
+    guardado = json.load(open(fila))
+    assert any(x["id"] == t.id and x["estado"] == "reintentar" for x in guardado), guardado
+    d = esperar(g, t.id)
+    assert d["estado"] == "listo", d
+
+    # 3) "apagón": la fila guardada se retoma al volver a prender
+    fila3 = os.path.join(TMP, "fila3.json")
+    temporal = os.path.join(R, "Descargas", ".bajando")
+    os.makedirs(os.path.join(temporal, "901", "Peli"), exist_ok=True)
+    open(os.path.join(temporal, "901", "Peli", "Peli.mkv"), "w").write("v")
+    json.dump([
+        {"id": 900, "url": "https://drive.google.com/drive/folders/APAGON", "estado": "bajando",
+         "nombre": "Serie", "archivo": 1, "total": 3},
+        {"id": 901, "url": "https://drive.google.com/drive/folders/nollamar", "estado": "acomodando",
+         "nombre": "Peli"},
+        {"id": 902, "url": "https://drive.google.com/drive/folders/VIEJA", "estado": "listo",
+         "nombre": "Vieja"},
+    ], open(fila3, "w"))
+    sin_red = {"hay": False}
+    g2 = descargas.Gestor(R, archivo=fila3, esperas=rapido, internet=lambda: sin_red["hay"])
+    time.sleep(0.5)
+    lista = {d["id"]: d for d in g2.lista()}
+    assert lista[900]["estado"] == "esperando", lista[900]
+    assert "internet" in lista[900]["actual"], lista[900]     # espera la red, sin gastar intentos
+    assert lista[901]["estado"] in ("listo", "acomodando"), lista[901]  # acomodar no necesita red
+    sin_red["hay"] = True
+    g2.hay_trabajo.set()
+    d = esperar(g2, 900, limite=60)
+    assert d["estado"] == "listo", d
+    assert esperar(g2, 901)["estado"] == "listo"
+    assert existe("Videos", "Peli", "Peli.mkv")
+    nuevo = g2.agregar("https://drive.google.com/drive/folders/OTRA")
+    assert nuevo.id > 902, nuevo.id   # los números siguen después de los guardados
+    esperar(g2, nuevo.id, limite=60)
+
+
+def probar_directo_cortado():
+    """Un link directo que se corta a la mitad: tiene que seguir desde donde quedó."""
+    import http.server
+    import threading
+    contenido = bytes(range(256)) * 4000          # ~1 MB
+    pedidos = []
+
+    class Servidor(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            rango = self.headers.get("Range")
+            pedidos.append(rango)
+            inicio = int(rango.split("=")[1].split("-")[0]) if rango else 0
+            self.send_response(206 if rango else 200)
+            self.send_header("Content-Disposition", 'attachment; filename="Pelicula.mp4"')
+            self.send_header("Content-Length", str(len(contenido) - inicio))
+            self.end_headers()
+            if not rango:   # la primera vez se corta a la mitad
+                self.wfile.write(contenido[:len(contenido) // 2])
+                self.wfile.flush()
+                self.connection.shutdown(2)
+                return
+            self.wfile.write(contenido[inicio:])
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 18484), Servidor)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    g = descargas.Gestor(R, archivo=os.path.join(TMP, "fila4.json"), internet=lambda: True)
+    t = g.agregar("http://127.0.0.1:18484/descargar?id=123")
+    d = esperar(g, t.id, limite=60)
+    srv.shutdown()
+    assert d["estado"] == "listo", d
+    assert pedidos[0] is None and pedidos[-1] == "bytes=%d-" % (len(contenido) // 2), pedidos
+    with open(os.path.join(R, "Videos", "Pelicula.mp4"), "rb") as f:
+        assert f.read() == contenido, "el archivo armado en dos partes no es igual al original"
 
 
 def probar_web(g):
@@ -210,7 +336,7 @@ def probar_red(python_con_gdown):
     """Baja de verdad la carpeta pública de prueba del proyecto gdown."""
     descargas.PYTHON_DRIVE = python_con_gdown
     descargas.BAJAR_DRIVE = os.path.join(AQUI, "televieja", "bajar_drive.py")
-    g = descargas.Gestor(R)
+    g = descargas.Gestor(R, archivo=os.path.join(TMP, "fila-red.json"))
     t = g.agregar("https://drive.google.com/drive/folders/1KpLl_1tcK0eeehzN980zbG-3M2nhbVks")
     d = esperar(g, t.id, limite=180)
     print("red:", d["estado"], d["nombre"], d["resumen"], d["mensaje"])
@@ -222,6 +348,8 @@ def main():
     probar_acomodar()
     g = probar_gestor()
     probar_web(g)
+    probar_reintentos_y_fila()
+    probar_directo_cortado()
     red = os.environ.get("TELEVIEJA_PRUEBA_RED")
     if red:
         probar_red(red)

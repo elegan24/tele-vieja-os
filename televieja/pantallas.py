@@ -1079,7 +1079,8 @@ class ControlCelular(Pantalla):
 class Descargas(Lista):
     """Muestra cómo van las descargas que se pidieron desde el celu."""
     ESTADOS = {"esperando": "en espera", "bajando": "bajando", "acomodando": "acomodando",
-               "listo": "lista", "error": "error", "cancelado": "cancelada"}
+               "listo": "lista", "error": "error", "cancelado": "cancelada",
+               "reintentar": "reintenta luego"}
 
     def __init__(self):
         super().__init__("Descargas", ayuda="B: volver   (se agregan desde el celu)")

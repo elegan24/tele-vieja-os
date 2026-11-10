@@ -15,6 +15,7 @@ import re
 import shutil
 import sys
 import threading
+import time
 
 import gdown
 
@@ -105,11 +106,21 @@ def bajar_carpeta(url, destino):
                 estado["lleno"] = True
                 return relativa, False, "Se llenó el disco."
             os.makedirs(os.path.dirname(local), exist_ok=True)
-            try:
-                ok = bool(gdown.download(id=ident, output=local, quiet=True, resume=True,
-                                         use_cookies=False))
-            except Exception as e:  # noqa: BLE001 - un archivo que falla no corta el resto
-                return relativa, False, traducir(str(e))
+            for intento in range(3):  # un corte de WiFi no hace fallar el archivo
+                try:
+                    ok = bool(gdown.download(id=ident, output=local, quiet=True, resume=True,
+                                             use_cookies=False))
+                    if ok:
+                        break
+                except Exception as e:  # noqa: BLE001 - un archivo que falla no corta el resto
+                    motivo = traducir(str(e))
+                    if "cuota" in motivo or "compartido" in motivo or "disco" in motivo:
+                        return relativa, False, motivo  # esto no se arregla reintentando ya
+                    ok = False
+                    if intento == 2:
+                        return relativa, False, motivo
+                if intento < 2:
+                    time.sleep(5 * 3 ** intento)  # 5 s, 15 s
         return relativa, ok, "" if ok else "No se pudo bajar"
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=paralelas) as pool:

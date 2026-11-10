@@ -428,7 +428,8 @@ PAGINA = """<!doctype html>
   const campoLink = document.getElementById("link");
   const listaDescargas = document.getElementById("descargas");
   const ESTADOS = { esperando: "En espera", bajando: "Bajando", acomodando: "Acomodando",
-                    listo: "Listo ✔", error: "Error", cancelado: "Cancelada" };
+                    listo: "Listo ✔", error: "Error", cancelado: "Cancelada",
+                    reintentar: "Reintenta más tarde" };
   function texto(t) { const s = document.createElement("span"); s.textContent = t; return s.innerHTML; }
   function dibujarDescargas(lista) {
     listaDescargas.innerHTML = lista.map((d) => {
@@ -438,6 +439,9 @@ PAGINA = """<!doctype html>
                   (d.porcentaje ? " · " + d.porcentaje + "%" : "");
       } else if (d.estado === "bajando") {
         detalle = d.actual || "Preguntándole a Google qué hay en el link...";
+      } else if (d.estado === "reintentar" || d.estado === "esperando") {
+        detalle = d.actual || "";
+        if (d.total) detalle += (detalle ? " · " : "") + d.archivo + " de " + d.total + " bajados";
       } else if (d.estado === "acomodando") {
         detalle = d.actual || "Repartiendo en las carpetas...";
       } else if (d.estado === "listo") {
@@ -450,7 +454,7 @@ PAGINA = """<!doctype html>
         (d.mensaje ? '<div class="aviso">' + texto(d.mensaje) + "</div>" : "") +
         d.avisos.map((a) => '<div class="aviso">' + texto(a) + "</div>").join("") +
         (d.estado === "bajando" ? '<div class="barra"><i style="width:' + avance + '%"></i></div>' : "") +
-        (d.estado === "esperando" || d.estado === "bajando"
+        (d.estado === "esperando" || d.estado === "bajando" || d.estado === "reintentar"
           ? '<button data-cancelar="' + d.id + '">Cancelar</button>' : "") + "</div>";
     }).join("");
   }

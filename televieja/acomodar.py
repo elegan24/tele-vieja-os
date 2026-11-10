@@ -170,6 +170,7 @@ def acomodar(origen, raiz=None, avisar=None):
             shutil.move(carpeta, destino)
             resumen[OTROS] = resumen.get(OTROS, 0) + cantidad
             continue
+        archivos = [a for a in archivos if not a.endswith(".part")]  # a medio bajar: se descartan
         solo_imagenes = archivos and all(a.lower().endswith(config.EXT_IMAGEN) for a in archivos)
         for a in archivos:
             ruta = os.path.join(carpeta, a)
@@ -194,6 +195,8 @@ def acomodar(origen, raiz=None, avisar=None):
     # 4) Por las dudas: si quedó algún archivo sin mover, a Descargas (nunca se borra nada).
     for carpeta, _, archivos in os.walk(origen):
         for a in archivos:
+            if a.endswith(".part"):
+                continue
             relativa = os.path.relpath(os.path.join(carpeta, a), origen)
             _mover(os.path.join(carpeta, a), os.path.join(raiz, OTROS, relativa))
             resumen[OTROS] = resumen.get(OTROS, 0) + 1

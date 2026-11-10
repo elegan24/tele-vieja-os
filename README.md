@@ -332,6 +332,20 @@ Límites (los pone Google, no TeleVieja):
 - Si un archivo se bajó demasiadas veces ese día, Google lo bloquea por un rato
   (**"cuota de descarga"**): probá de nuevo al otro día.
 - Baja de a una descarga por vez y deja siempre medio GB libre en el disco.
+
+**No se pierde nada si se corta algo:**
+- La fila de descargas (las que están bajando y las que esperan) se **guarda**: si se corta la
+  luz, reiniciás o actualizás, al volver a prender **sigue sola** desde donde quedó, sin volver
+  a bajar lo que ya estaba.
+- Si **se corta internet**, espera a que vuelva (no la da por fallada).
+- Si un archivo falla por un corte, lo reintenta enseguida (hasta 3 veces). Si igual falta
+  algo, la descarga queda en **"Reintenta a las HH:MM"** y vuelve a probar sola más tarde
+  (unos minutos si fue un corte; unas horas si Google frenó por **cuota**).
+- Recién cuando está todo bajado se acomoda en las carpetas. Si después de varios intentos
+  siguen faltando archivos, acomoda lo que llegó y avisa cuántos faltaron.
+- Un link que **no es público** no se reintenta (no se arregla esperando).
+- Los links directos (por ejemplo de MediaFire) también siguen desde donde se cortaron, si el
+  sitio lo permite.
 - Cualquiera conectado a tu WiFi puede usar la página, igual que el control.
 
 Usá la herramienta con cosas que tengas derecho a bajar: tus propios archivos, lo que te
