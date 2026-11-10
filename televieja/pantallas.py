@@ -1003,6 +1003,8 @@ class Descargas(Lista):
         for d in lista:
             if d["estado"] == "bajando" and d["total"]:
                 extra = "%d/%d %d%%" % (d["archivo"], d["total"], d["porcentaje"])
+            elif d["estado"] == "bajando":
+                extra = "leyendo lista (%d)" % (d["carpetas_leidas"] + d["archivos_vistos"])
             else:
                 extra = self.ESTADOS.get(d["estado"], d["estado"])
             self.items.append(Item(d["nombre"], icono="bajar", extra=extra,

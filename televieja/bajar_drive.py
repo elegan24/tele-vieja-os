@@ -65,8 +65,11 @@ def bajar_carpeta(url, destino):
     modulo = importlib.import_module("gdown.download_folder")
     import requests
     sesion = requests.session()
+    evento(leyendo=True)
+    # quiet=False: gdown va escribiendo "Retrieving folder..." y "Processing file..."
+    # mientras recorre las subcarpetas; descargas.py lo usa para mostrar el avance.
     ok, raiz = modulo._download_and_parse_google_drive_link(
-        sesion, url, quiet=True, remaining_ok=True, verify=True)
+        sesion, url, quiet=False, remaining_ok=True, verify=True)
     if not ok or raiz is None:
         raise RuntimeError("Cannot retrieve the folder")
     nombre = limpio(raiz.name)

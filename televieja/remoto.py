@@ -355,6 +355,8 @@ PAGINA = """<!doctype html>
       if (d.estado === "bajando" && d.total) {
         detalle = "Archivo " + d.archivo + " de " + d.total + (d.actual ? " · " + d.actual : "") +
                   (d.porcentaje ? " · " + d.porcentaje + "%" : "");
+      } else if (d.estado === "bajando") {
+        detalle = d.actual || "Preguntándole a Google qué hay en el link...";
       } else if (d.estado === "acomodando") {
         detalle = d.actual || "Repartiendo en las carpetas...";
       } else if (d.estado === "listo") {

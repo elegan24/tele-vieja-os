@@ -53,12 +53,15 @@ class Trabajo:
         self.resumen = {}
         self.proceso = None
         self.creado = time.time()
+        self.carpetas_leidas = 0    # mientras Google da la lista de una carpeta grande
+        self.archivos_vistos = 0
 
     def como_dict(self):
         return {
             "id": self.id, "url": self.url, "estado": self.estado, "nombre": self.nombre,
             "archivo": self.archivo, "total": self.total, "porcentaje": self.porcentaje,
             "actual": self.actual, "mensaje": self.mensaje, "avisos": self.avisos[-3:],
+            "carpetas_leidas": self.carpetas_leidas, "archivos_vistos": self.archivos_vistos,
             "resumen": acomodar.describir(self.resumen) if self.resumen else "",
         }
 
@@ -180,6 +183,8 @@ class Gestor:
                     datos = json.loads(renglon[3:])
                 except ValueError:
                     continue
+                if datos.get("leyendo"):
+                    trabajo.actual = "Leyendo la lista de archivos de Google Drive..."
                 if "nombre" in datos:
                     trabajo.nombre = datos["nombre"]
                 if "total" in datos:
@@ -199,6 +204,14 @@ class Gestor:
                     error = datos["error"]
                 if datos.get("fallados"):
                     trabajo.mensaje = "%d archivos no se pudieron bajar." % datos["fallados"]
+            elif renglon.startswith("Retrieving folder ") and not trabajo.total:
+                trabajo.carpetas_leidas += 1
+                trabajo.actual = "Leyendo la lista: %d carpetas, %d archivos" % (
+                    trabajo.carpetas_leidas, trabajo.archivos_vistos)
+            elif renglon.startswith("Processing file ") and not trabajo.total:
+                trabajo.archivos_vistos += 1
+                trabajo.actual = "Leyendo la lista: %d carpetas, %d archivos" % (
+                    trabajo.carpetas_leidas, trabajo.archivos_vistos)
             else:
                 m = re.search(r"(\d{1,3})%\|", renglon)
                 if m:

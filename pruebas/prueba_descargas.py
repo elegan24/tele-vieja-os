@@ -103,6 +103,10 @@ url, destino = sys.argv[1], sys.argv[2]
 def ev(**d): print("@@ " + json.dumps(d), flush=True)
 if "roto" in url:
     ev(error="No se puede bajar: el link tiene que estar compartido"); sys.exit(1)
+ev(leyendo=True)
+print("Retrieving folder AAA Temporada", flush=True)
+print("Processing file BBB Cap 1.mp4", flush=True)
+time.sleep(0.3)
 ev(nombre="Dibujitos")
 ev(total=2, incompletas=1)
 for i, n in enumerate(["Cap 1.mp4", "Cap 2.mp4"], 1):
@@ -144,6 +148,13 @@ def probar_gestor():
         raise AssertionError("tenía que rechazar el repetido")
     except ValueError:
         pass
+    vio_lectura = False
+    fin = time.time() + 10
+    while time.time() < fin and not vio_lectura:
+        d = [x for x in g.lista() if x["id"] == t.id][0]
+        vio_lectura = d["carpetas_leidas"] == 1 and d["archivos_vistos"] == 1
+        time.sleep(0.05)
+    assert vio_lectura, "no mostró el avance de la lectura de carpetas"
     d = esperar(g, t.id)
     assert d["estado"] == "listo", d
     assert d["nombre"] == "Dibujitos" and d["total"] == 2, d
