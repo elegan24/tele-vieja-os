@@ -290,6 +290,21 @@ for placa in /sys/class/net/wl*; do
     [ -e "$placa" ] && iw dev "$(basename "$placa")" set power_save off 2>/dev/null || true
 done
 
+# Sin suspensiones: la netbook se usa como una tele (con la tapa cerrada, enchufada a la
+# tele). Cerrar la tapa o la tecla de "dormir" no la suspenden; el botón de encendido apaga.
+mkdir -p /etc/systemd/logind.conf.d
+cat > /etc/systemd/logind.conf.d/televieja.conf <<'EOF'
+[Login]
+HandleLidSwitch=ignore
+HandleLidSwitchExternalPower=ignore
+HandleLidSwitchDocked=ignore
+HandleSuspendKey=ignore
+HandleHibernateKey=ignore
+IdleAction=ignore
+EOF
+# Y por las dudas, que nada la pueda mandar a dormir.
+systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target >/dev/null 2>&1 || true
+
 verde "==> 7/7 Arranque silencioso..."
 if [ -f /etc/default/grub ]; then
     sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=2/' /etc/default/grub

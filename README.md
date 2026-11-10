@@ -547,6 +547,7 @@ Para volver al menú desde la terminal: `startx`.
 | El joystick no responde en los juegos | *Opciones → Configurar joystick* |
 | Un video anda trabado | Pasalo a 480p (ver arriba) |
 | El joystick del celu dice "No se pudo crear el joystick" | Reiniciá la netbook (carga el módulo `uinput`). Si sigue, volvé a correr `sudo ./instalar.sh` |
+| Se suspende sola (pantalla negra, lucecita titilando) | Actualizá: TeleVieja ya no se suspende al cerrar la tapa ni con la tecla de "dormir". Para despertarla ahora, apretá el botón de encendido un instante |
 | El WiFi se corta cada tanto | Volvé a correr `sudo ./instalar.sh` (apaga el ahorro de energía del WiFi) y reiniciá |
 | El celu no abre la página del control | Que esté en el mismo WiFi que la netbook (no en datos móviles) y que la dirección sea la que muestra *Opciones → Control desde el celular* |
 | Un juego no abre | Revisá que la ROM sea de esa consola. Los errores quedan en `~/.cache/televieja/juego.log` |
