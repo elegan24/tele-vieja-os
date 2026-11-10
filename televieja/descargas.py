@@ -42,6 +42,17 @@ def validar(url):
         raise ValueError("Eso no parece un link. Tiene que empezar con https://")
     if len(url) > 2000:
         raise ValueError("El link es demasiado largo.")
+    host = partes.netloc.lower()
+    if host in ("mediafire.com", "www.mediafire.com"):
+        # La página de MediaFire no se puede bajar sola (tiene un control anti-robots).
+        # El link directo (download####.mediafire.com/...) sí, y lo saca uno desde el celu.
+        if "/folder/" in partes.path:
+            raise ValueError("Las carpetas de MediaFire no se pueden bajar desde acá. "
+                             "Entrá a la carpeta en el celu y pegá el link directo de cada "
+                             "archivo (ver abajo).")
+        raise ValueError("Ese es el link de la página de MediaFire. Abrilo en el celu, "
+                         "mantené apretado el botón azul \"Download\" y elegí "
+                         "\"Copiar dirección del enlace\". Pegá ese link acá.")
     return url
 
 

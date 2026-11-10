@@ -384,6 +384,9 @@ PAGINA = """<!doctype html>
   </form>
   <p class="nota">Archivo o carpeta compartidos como "Cualquier persona con el enlace".
     Se baja en la netbook y se acomoda solo: videos, juegos, historietas, radio.</p>
+  <p class="nota">También sirven links directos de otros sitios. <b>MediaFire:</b> abrí la página
+    del archivo, mantené apretado el botón azul "Download" → "Copiar dirección del enlace" y
+    pegá ese link (empieza con https://download...).</p>
   <div id="descargas"></div>
 
   <h2>Mantenimiento</h2>

@@ -136,6 +136,16 @@ def probar_gestor():
     descargas.PYTHON_DRIVE = sys.executable
     descargas.BAJAR_DRIVE = falso
     g = descargas.Gestor(R)
+    for mf in ("https://www.mediafire.com/file/abc123/juego.zip/file",
+               "https://www.mediafire.com/folder/abc123/Pack"):
+        try:
+            g.agregar(mf)
+            raise AssertionError("tenía que explicar qué link de MediaFire pegar")
+        except ValueError as e:
+            assert "MediaFire" in str(e), e
+    # el link directo de MediaFire sí se acepta (lo baja la descarga directa)
+    assert not descargas.es_drive("https://download1234.mediafire.com/abc/juego.zip")
+    descargas.validar("https://download1234.mediafire.com/abc/juego.zip")
     for malo in ("", "hola", "ftp://x/y", "javascript:alert(1)"):
         try:
             g.agregar(malo)
