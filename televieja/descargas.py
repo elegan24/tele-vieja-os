@@ -16,6 +16,13 @@ import urllib.request
 
 from . import acomodar, config
 
+def paralelas():
+    try:
+        return max(1, min(8, int(config.leer_opciones().get("DESCARGAS_PARALELAS", "4"))))
+    except ValueError:
+        return 4
+
+
 PYTHON_DRIVE = os.path.join(config.APP_DIR, "pyenv", "bin", "python")
 BAJAR_DRIVE = os.path.join(config.APP_DIR, "televieja", "bajar_drive.py")
 _numeros = itertools.count(1)
@@ -170,8 +177,9 @@ class Gestor:
             trabajo.mensaje = "Falta gdown: volvé a correr instalar.sh con internet."
             return False
         try:
+            entorno = dict(os.environ, TELEVIEJA_PARALELAS=str(paralelas()))
             proceso = subprocess.Popen([PYTHON_DRIVE, BAJAR_DRIVE, trabajo.url, carpeta],
-                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=entorno)
         except OSError as e:
             trabajo.mensaje = str(e)
             return False
@@ -194,9 +202,10 @@ class Gestor:
                             "Google muestra solo 50 archivos por carpeta: puede que falten "
                             "algunos. Pegá el link de cada subcarpeta para bajar el resto.")
                 if "archivo" in datos:
-                    trabajo.archivo = datos["archivo"]
+                    trabajo.archivo = datos["archivo"]       # cuántos van hechos
                     trabajo.actual = os.path.basename(datos.get("ruta", ""))
-                    trabajo.porcentaje = 0
+                    if trabajo.total > 1:  # porcentaje de TODA la descarga
+                        trabajo.porcentaje = min(100, trabajo.archivo * 100 // trabajo.total)
                 if "aviso" in datos:
                     trabajo.avisos.append("%s: %s" % (os.path.basename(datos.get("ruta", "")),
                                                       datos["aviso"]))
@@ -214,7 +223,7 @@ class Gestor:
                     trabajo.carpetas_leidas, trabajo.archivos_vistos)
             else:
                 m = re.search(r"(\d{1,3})%\|", renglon)
-                if m:
+                if m and trabajo.total <= 1:  # un archivo solo: sí sirve el porcentaje de gdown
                     trabajo.porcentaje = int(m.group(1))
         proceso.wait()
         trabajo.proceso = None

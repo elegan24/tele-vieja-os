@@ -19,7 +19,7 @@ import pygame
 
 EVENTO = pygame.USEREVENT + 7
 BOTONES = {"up", "down", "left", "right", "a", "b", "x", "y", "l", "r",
-           "select", "start", "inicio", "vol+", "vol-", "mute"}
+           "select", "start", "inicio", "vol+", "vol-", "mute", "actualizar"}
 BOTONES_JOYSTICK = {"up", "down", "left", "right", "a", "b", "x", "y", "l", "r", "l2", "r2",
                     "select", "start"}
 GUID_WEBSOCKET = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -385,6 +385,12 @@ PAGINA = """<!doctype html>
   <p class="nota">Archivo o carpeta compartidos como "Cualquier persona con el enlace".
     Se baja en la netbook y se acomoda solo: videos, juegos, historietas, radio.</p>
   <div id="descargas"></div>
+
+  <h2>Mantenimiento</h2>
+  <div class="fila" style="--n:1">
+    <button data-b="actualizar">⬇ Actualizar TeleVieja</button>
+  </div>
+  <p class="nota">La tele te pregunta si querés buscar la última versión; confirmás con el joystick o el control.</p>
 
   <div id="estado"></div>
 </main>

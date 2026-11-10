@@ -449,6 +449,16 @@ En una tele de 13" lo más cómodo es **Ancho**: la página ocupa todo el ancho 
 
 ---
 
+## Actualizar TeleVieja (con un botón)
+
+*Opciones → **Actualizar TeleVieja*** (o el botón **"Actualizar TeleVieja"** al final de la página
+del celu). La tele pregunta si buscar la última versión; al confirmar, la netbook la baja de
+GitHub, la instala y reinicia el menú sola. Tarda unos minutos y necesita internet. Si ya tenés
+la última versión, te lo dice. El registro queda en `/var/log/televieja-actualizar.log`.
+
+(La primera vez, para tener el botón, hay que actualizar a mano una vez:
+`sudo -i`, `cd tele-vieja-os`, `git pull`, `./instalar.sh TU_USUARIO`.)
+
 ## Temas, efectos y otras chucherías
 
 - **Temas** (*Opciones → Tema*): Clásico, Fichín (arcade, con grilla de neón), Game Boy (los
@@ -484,6 +494,7 @@ En `~/.config/televieja/opciones.conf` (desde *Opciones → Salir a la terminal*
 | `PUERTO_CELULAR` | El puerto de esa página (`8080`) |
 | `N64` | `auto` (aparece si la placa de video puede), `si` o `no` |
 | `PC_ESCRITORIO_VIRTUAL` | `si`: los juegos de PC en una ventana del tamaño de la pantalla; `no`: que cambien la resolución |
+| `DESCARGAS_PARALELAS` | Cuántos archivos se bajan a la vez de una carpeta de Drive (`4`; de 1 a 8) |
 | `TEMA` | `auto`, `clasico`, `fichin`, `gameboy`, `cine`, `canal7`, `navidad` o `halloween` |
 | `EFECTO_ENCENDIDO` | `si`/`no`: efecto de tele de tubo al prender y apagar |
 | `PROTECTOR_MINUTOS` | Minutos sin tocar nada hasta el protector de pantalla (`0` = nunca) |

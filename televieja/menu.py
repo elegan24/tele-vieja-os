@@ -443,6 +443,10 @@ class App:
         if boton == "inicio":
             self.ir_al_inicio()
             return True
+        if boton == "actualizar":
+            self.ir_al_inicio()
+            self.poner(Confirmar("¿Buscar y instalar la última versión?", actualizar))
+            return True
         return False
 
     def cambiar_pantalla(self):
@@ -458,6 +462,11 @@ class App:
         r = subprocess.run(["sudo", "-n", "systemctl", accion], capture_output=True, text=True)
         if r.returncode != 0:
             self.poner(Mensaje("No se pudo", r.stderr.strip() or "Error"))
+
+    def reiniciar_menu(self):
+        """Cierra el menú: .xinitrc lo vuelve a abrir enseguida, ya con el código nuevo."""
+        self.codigo_salida = 0
+        self.corriendo = False
 
     def salir_a_terminal(self):
         self.codigo_salida = SALIR_A_TERMINAL
@@ -544,6 +553,8 @@ def menu_principal(app):
         Item("Control desde el celular", ir(ControlCelular), icono="celular"),
         Item("Descargas", ir(Descargas), icono="bajar"),
         Item("Cambiar pantalla (tele / netbook)", lambda app: app.cambiar_pantalla(), icono="tele"),
+        Item("Actualizar TeleVieja", lambda app: app.poner(Confirmar(
+            "¿Buscar y instalar la última versión?", actualizar)), icono="bajar"),
         Item("Reiniciar", lambda app: app.poner(Confirmar("¿Reiniciar?", lambda a: a.sistema("reboot"))),
              icono="flecha"),
         Item("Salir a la terminal", lambda app: app.salir_a_terminal(), icono="engranaje"),
@@ -562,6 +573,32 @@ def menu_principal(app):
                                                        lambda a: a.sistema("poweroff"))),
              icono="apagar"),
     ], ayuda="A: elegir")
+
+
+def actualizar(app):
+    """Baja la versión nueva de GitHub, la instala y reinicia el menú."""
+    script = os.path.join(config.BIN_DIR, "actualizar.sh")
+
+    def trabajo():
+        r = subprocess.run(["sudo", "-n", script], capture_output=True, text=True)
+        lineas = [l for l in (r.stdout + r.stderr).splitlines() if l.strip()]
+        return r.returncode, lineas
+
+    def terminar(app, resultado, error):
+        if error:
+            app.poner(Mensaje("No se pudo actualizar", str(error)))
+            return
+        rc, lineas = resultado
+        ultima = lineas[-1] if lineas else ""
+        if rc == 0 and ultima == "LISTO":
+            app.poner(Mensaje("¡Actualizada!", "TeleVieja se actualizó. Se reinicia el menú...",
+                              lambda a: a.reiniciar_menu()))
+        elif rc == 0:
+            app.poner(Mensaje("Todo al día", ultima or "Ya tenés la última versión."))
+        else:
+            app.poner(Mensaje("No se pudo actualizar", ultima or "Error desconocido"))
+
+    app.poner(Espera("Actualizar", "Actualizando... puede tardar unos minutos", trabajo, terminar))
 
 
 def copiar_pendrive(app):

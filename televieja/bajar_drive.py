@@ -7,12 +7,14 @@ Uso: bajar_drive.py URL CARPETA_DESTINO
 Escribe renglones "@@ {json}" para contar cómo va. El resto de lo que imprime
 (la barrita de gdown) también sirve: de ahí se saca el porcentaje.
 """
+import concurrent.futures
 import importlib
 import json
 import os
 import re
 import shutil
 import sys
+import threading
 
 import gdown
 
@@ -91,26 +93,37 @@ def bajar_carpeta(url, destino):
 
     recorrer(raiz, "")
     evento(total=len(archivos), incompletas=incompletas)
-    fallados = 0
-    for i, (ident, relativa) in enumerate(archivos, 1):
-        evento(archivo=i, de=len(archivos), ruta=relativa)
+    paralelas = max(1, min(8, int(os.environ.get("TELEVIEJA_PARALELAS", "4"))))
+    lock = threading.Lock()
+    estado = {"hechos": 0, "fallados": 0, "lleno": False}
+
+    def bajar_uno(ident, relativa):
         local = os.path.join(destino, nombre, relativa)
-        if os.path.exists(local):
-            continue  # ya estaba (se puede reanudar una descarga cortada)
-        if not hay_lugar(destino):
-            evento(aviso="Se llenó el disco: corto acá.", ruta=relativa)
-            fallados += len(archivos) - i + 1
-            break
-        os.makedirs(os.path.dirname(local), exist_ok=True)
-        try:
-            listo = gdown.download(id=ident, output=local, quiet=False, resume=True,
-                                   use_cookies=False)
-        except Exception as e:  # noqa: BLE001 - un archivo que falla no corta el resto
-            listo = None
-            evento(aviso=traducir(str(e)), ruta=relativa)
-        if not listo:
-            fallados += 1
-    evento(listo=len(archivos) - fallados, fallados=fallados)
+        ok = True
+        if not os.path.exists(local):
+            if estado["lleno"] or not hay_lugar(destino):
+                estado["lleno"] = True
+                return relativa, False, "Se llenó el disco."
+            os.makedirs(os.path.dirname(local), exist_ok=True)
+            try:
+                ok = bool(gdown.download(id=ident, output=local, quiet=True, resume=True,
+                                         use_cookies=False))
+            except Exception as e:  # noqa: BLE001 - un archivo que falla no corta el resto
+                return relativa, False, traducir(str(e))
+        return relativa, ok, "" if ok else "No se pudo bajar"
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=paralelas) as pool:
+        trabajos = [pool.submit(bajar_uno, ident, rel) for ident, rel in archivos]
+        for futuro in concurrent.futures.as_completed(trabajos):
+            relativa, ok, motivo = futuro.result()
+            with lock:
+                estado["hechos"] += 1
+                if not ok:
+                    estado["fallados"] += 1
+            if not ok:
+                evento(aviso=motivo, ruta=relativa)
+            evento(archivo=estado["hechos"], de=len(archivos), ruta=relativa)
+    evento(listo=len(archivos) - estado["fallados"], fallados=estado["fallados"])
 
 
 def main():

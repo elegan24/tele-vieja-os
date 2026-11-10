@@ -83,7 +83,9 @@ verde "==> 2/7 Copiando TeleVieja a $APP..."
 rm -rf "${APP:?}/televieja" "${APP:?}/sistema" "${APP:?}/bin"
 mkdir -p "$APP/cores"
 cp -r "$AQUI/televieja" "$AQUI/sistema" "$AQUI/bin" "$APP/"
-sed -i "s/@USUARIO@/$USUARIO/" "$APP/bin/importar-usb.sh" "$APP/bin/disco-usb.sh"
+sed -i "s/@USUARIO@/$USUARIO/" "$APP/bin/importar-usb.sh" "$APP/bin/disco-usb.sh" "$APP/bin/actualizar.sh"
+# Qué versión quedó instalada (para saber si hay algo nuevo)
+git -C "$AQUI" rev-parse --short HEAD > "$APP/VERSION" 2>/dev/null || true
 chown -R root:root "$APP"
 chmod 755 "$APP/bin/"*.sh
 find "$APP" -name '__pycache__' -prune -exec rm -rf {} +
@@ -185,6 +187,8 @@ N64=auto
 # Juegos de PC: mostrarlos en una ventana del tamaño de la pantalla (si) o dejar que
 # cambien la resolución (no). Con "si" la tele y el conversor no se enteran.
 PC_ESCRITORIO_VIRTUAL=si
+# Archivos que se bajan a la vez de una carpeta de Google Drive (1 a 8)
+DESCARGAS_PARALELAS=4
 # Tema del menú: auto (Navidad y Halloween según la fecha), clasico, fichin,
 # gameboy, cine, canal7, navidad o halloween. Se cambia desde Opciones > Tema.
 TEMA=auto
@@ -235,7 +239,7 @@ fi
 verde "==> 6/7 Permisos (joystick, sonido, apagar, discos USB)..."
 usermod -aG input,audio,video "$USUARIO"
 cat > /etc/sudoers.d/televieja <<EOF
-$USUARIO ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl reboot, $APP/bin/importar-usb.sh
+$USUARIO ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl reboot, $APP/bin/importar-usb.sh, $APP/bin/actualizar.sh
 EOF
 chmod 440 /etc/sudoers.d/televieja
 visudo -cf /etc/sudoers.d/televieja >/dev/null
