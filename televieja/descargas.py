@@ -99,7 +99,8 @@ def clasificar(textos):
 
 class Trabajo:
     CAMPOS = ("id", "url", "estado", "nombre", "archivo", "total", "porcentaje", "mensaje",
-              "avisos", "resumen", "creado", "intentos", "proximo", "solo_acomodar")
+              "avisos", "resumen", "creado", "intentos", "proximo", "solo_acomodar",
+              "aviso_temprano")
 
     def __init__(self, url, ident=None):
         self.id = ident if ident is not None else next(_numeros)
@@ -121,6 +122,7 @@ class Trabajo:
         self.intentos = 0           # cuántas veces se reintentó
         self.proximo = 0.0          # cuándo reintentar (hora en segundos)
         self.solo_acomodar = False  # se cortó mientras acomodaba: no hace falta bajar de nuevo
+        self.aviso_temprano = False  # ya se avisó que hay cosas para usar
 
     def a_guardar(self):
         return {c: getattr(self, c) for c in self.CAMPOS}
@@ -318,6 +320,23 @@ class Gestor:
         else:
             self._fallo(trabajo, carpeta)
 
+    def _acomodar_ya(self, trabajo, carpeta, relativa):
+        """Un video (o juego, historieta...) que ya llegó: a su lugar, para usarlo ya."""
+        try:
+            cat = acomodar.acomodar_archivo(carpeta, os.path.join(trabajo.nombre, relativa),
+                                            self.raiz)
+        except OSError:
+            return
+        if not cat:
+            return
+        # anotado: si la descarga se reanuda, no se vuelve a bajar
+        with open(os.path.join(carpeta, ".televieja-hechos"), "a", encoding="utf-8") as f:
+            f.write(relativa + "\n")
+        trabajo.resumen[cat] = trabajo.resumen.get(cat, 0) + 1
+        if not trabajo.aviso_temprano:
+            trabajo.aviso_temprano = True
+            self._novedad("Ya podés usar lo primero que llegó de %s" % trabajo.nombre)
+
     def _acomodar(self, trabajo, carpeta, faltaron=False):
         trabajo.estado = "acomodando"
         trabajo.solo_acomodar = True
@@ -326,7 +345,8 @@ class Gestor:
 
         def avisar(texto):
             trabajo.actual = texto
-        trabajo.resumen = acomodar.acomodar(carpeta, self.raiz, avisar)
+        for cat, n in acomodar.acomodar(carpeta, self.raiz, avisar).items():
+            trabajo.resumen[cat] = trabajo.resumen.get(cat, 0) + n
         trabajo.estado = "listo"
         trabajo.solo_acomodar = False
         if faltaron:
@@ -378,6 +398,7 @@ class Gestor:
             return False
         trabajo.proceso = proceso
         error = None
+        elegibles = set()
         for renglon in _renglones(proceso.stdout):
             if renglon.startswith("@@ "):
                 try:
@@ -394,6 +415,11 @@ class Gestor:
                         trabajo.avisos.append(
                             "Google muestra solo 50 archivos por carpeta: puede que falten "
                             "algunos. Pegá el link de cada subcarpeta para bajar el resto.")
+                if "lista" in datos:
+                    elegibles = acomodar.elegibles_temprano(datos["lista"])
+                if "archivo" in datos and datos.get("ok") and datos.get("nuevo") \
+                        and datos.get("ruta") in elegibles:
+                    self._acomodar_ya(trabajo, carpeta, datos["ruta"])
                 if "archivo" in datos:
                     self._guardar(forzar=False)
                     trabajo.archivo = datos["archivo"]       # cuántos van hechos

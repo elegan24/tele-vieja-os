@@ -341,7 +341,10 @@ Límites (los pone Google, no TeleVieja):
 - Si un archivo falla por un corte, lo reintenta enseguida (hasta 3 veces). Si igual falta
   algo, la descarga queda en **"Reintenta a las HH:MM"** y vuelve a probar sola más tarde
   (unos minutos si fue un corte; unas horas si Google frenó por **cuota**).
-- Recién cuando está todo bajado se acomoda en las carpetas. Si después de varios intentos
+- **Lo que va llegando ya se puede usar:** cada video, audio, historieta o juego suelto se
+  acomoda apenas termina de bajar (si van 71 de 3250, ya podés ver esos 71). Los packs
+  comprimidos, los juegos de PC y los de PS1 se acomodan al final, cuando están completos.
+- Lo demás recién se acomoda cuando está todo bajado. Si después de varios intentos
   siguen faltando archivos, acomoda lo que llegó y avisa cuántos faltaron.
 - Un link que **no es público** no se reintenta (no se arregla esperando).
 - Los links directos (por ejemplo de MediaFire) también siguen desde donde se cortaron, si el

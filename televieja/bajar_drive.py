@@ -98,6 +98,13 @@ def bajar_carpeta(url, destino):
 
     recorrer(raiz, "")
     evento(total=len(archivos), incompletas=incompletas)
+    evento(lista=[rel for _, rel in archivos])
+    # Los que TeleVieja ya acomodó mientras se bajaba (no están acá, pero ya se bajaron).
+    try:
+        with open(os.path.join(destino, ".televieja-hechos"), encoding="utf-8") as f:
+            ya_acomodados = {l.rstrip("\n") for l in f if l.strip()}
+    except OSError:
+        ya_acomodados = set()
     paralelas = max(1, min(8, int(os.environ.get("TELEVIEJA_PARALELAS", "4"))))
     lock = threading.Lock()
     estado = {"hechos": 0, "fallados": 0, "lleno": False}
@@ -105,6 +112,8 @@ def bajar_carpeta(url, destino):
     def bajar_uno(ident, relativa):
         local = os.path.join(destino, nombre, relativa)
         ok = True
+        if relativa in ya_acomodados:
+            return relativa, True, ""
         if not os.path.exists(local):
             if estado["lleno"] or not hay_lugar(destino):
                 estado["lleno"] = True
@@ -137,7 +146,8 @@ def bajar_carpeta(url, destino):
                     estado["fallados"] += 1
             if not ok:
                 evento(aviso=motivo, ruta=relativa)
-            evento(archivo=estado["hechos"], de=len(archivos), ruta=relativa)
+            evento(archivo=estado["hechos"], de=len(archivos), ruta=relativa, ok=ok,
+                   nuevo=relativa not in ya_acomodados)
     evento(listo=len(archivos) - estado["fallados"], fallados=estado["fallados"])
 
 

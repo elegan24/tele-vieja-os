@@ -42,6 +42,36 @@ def categoria(nombre):
     return ROMS.get(ext)
 
 
+def elegibles_temprano(rutas):
+    """De la lista completa de una descarga, qué archivos se pueden acomodar apenas llegan.
+
+    Videos, audios, historietas y juegos sueltos sí. No: lo que está en la carpeta de un
+    juego de PC, los comprimidos (pueden ser packs), las imágenes sueltas y los juegos de
+    PS1 (necesitan sus .bin al lado): eso se acomoda al final, con todo junto.
+    """
+    rutas = [r.replace("\\", "/") for r in rutas]
+    con_exe = {os.path.dirname(r) for r in rutas if r.lower().endswith(".exe")}
+    elegibles = set()
+    for r in rutas:
+        carpeta = os.path.dirname(r)
+        if any(carpeta == c or (c and carpeta.startswith(c + "/")) for c in con_exe):
+            continue
+        cat = categoria(os.path.basename(r))
+        if cat and cat != "Juegos/PlayStation":
+            elegibles.add(r)
+    return elegibles
+
+
+def acomodar_archivo(origen, relativa, raiz):
+    """Acomoda un solo archivo ya bajado (origen/relativa). Devuelve la categoría o None."""
+    ruta = os.path.join(origen, relativa)
+    cat = categoria(os.path.basename(relativa))
+    if not cat or not os.path.isfile(ruta):
+        return None
+    _mover(ruta, os.path.join(raiz, *cat.split("/"), os.path.normpath(relativa)))
+    return cat
+
+
 def _categoria_zip(ruta):
     """Si un .zip es un juego (o una historieta) entero, a dónde va. Si es un pack, None."""
     base = os.path.splitext(os.path.basename(ruta))[0].lower()
@@ -170,7 +200,8 @@ def acomodar(origen, raiz=None, avisar=None):
             shutil.move(carpeta, destino)
             resumen[OTROS] = resumen.get(OTROS, 0) + cantidad
             continue
-        archivos = [a for a in archivos if not a.endswith(".part")]  # a medio bajar: se descartan
+        # a medio bajar (.part) y los de control de TeleVieja: no se acomodan
+        archivos = [a for a in archivos if not a.endswith(".part") and not a.startswith(".televieja")]
         solo_imagenes = archivos and all(a.lower().endswith(config.EXT_IMAGEN) for a in archivos)
         for a in archivos:
             ruta = os.path.join(carpeta, a)
@@ -195,7 +226,7 @@ def acomodar(origen, raiz=None, avisar=None):
     # 4) Por las dudas: si quedó algún archivo sin mover, a Descargas (nunca se borra nada).
     for carpeta, _, archivos in os.walk(origen):
         for a in archivos:
-            if a.endswith(".part"):
+            if a.endswith(".part") or a.startswith(".televieja"):
                 continue
             relativa = os.path.relpath(os.path.join(carpeta, a), origen)
             _mover(os.path.join(carpeta, a), os.path.join(raiz, OTROS, relativa))

@@ -267,6 +267,66 @@ def probar_reintentos_y_fila():
     esperar(g2, nuevo.id, limite=60)
 
 
+FALSO_TEMPRANO = r'''
+import json, os, sys, time
+url, destino = sys.argv[1], sys.argv[2]
+def ev(**d): print("@@ " + json.dumps(d), flush=True)
+lista = ["T1/Cap 1.mp4", "T1/Cap 2.mp4", "Pack.zip", "Juego PC/juego.exe", "Juego PC/intro.avi"]
+hechos = set()
+p = os.path.join(destino, ".televieja-hechos")
+if os.path.exists(p):
+    hechos = {l.strip() for l in open(p) if l.strip()}
+open(os.path.join(os.path.dirname(destino), "bajados-" + os.path.basename(destino)), "a").write(
+    ",".join(r for r in lista if r not in hechos) + "\n")
+ev(nombre="Mezcla")
+ev(total=len(lista), incompletas=0)
+ev(lista=lista)
+for i, rel in enumerate(lista, 1):
+    if rel not in hechos:
+        ruta = os.path.join(destino, "Mezcla", rel)
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        open(ruta, "w").write("x")
+    ev(archivo=i, de=len(lista), ruta=rel, ok=True, nuevo=rel not in hechos)
+    time.sleep(0.4)
+    if "cortar" in url and i == 2 and not hechos:
+        ev(error="Se cortó la conexión a internet."); sys.exit(1)
+ev(listo=len(lista), fallados=0)
+'''
+
+
+def probar_temprano():
+    """Lo que ya llegó se puede usar mientras baja el resto (y no se vuelve a bajar)."""
+    from televieja import acomodar as ac
+    el = ac.elegibles_temprano(["T1/Cap 1.mp4", "Pack.zip", "Juego PC/juego.exe",
+                                "Juego PC/intro.avi", "PS1/Crash.cue", "Comics/K.cbr", "a.nes"])
+    assert el == {"T1/Cap 1.mp4", "Comics/K.cbr", "a.nes"}, el
+    falso = os.path.join(TMP, "falso_temprano.py")
+    with open(falso, "w") as f:
+        f.write(FALSO_TEMPRANO)
+    descargas.BAJAR_DRIVE = falso
+    g = descargas.Gestor(R, archivo=os.path.join(TMP, "fila5.json"), internet=lambda: True,
+                         esperas={"red": [0.003]})
+    t = g.agregar("https://drive.google.com/drive/folders/cortar")
+    # antes de que termine, el primer capítulo ya está en Videos
+    fin = time.time() + 10
+    while time.time() < fin and not existe("Videos", "Mezcla", "T1", "Cap 1.mp4"):
+        time.sleep(0.05)
+    assert existe("Videos", "Mezcla", "T1", "Cap 1.mp4"), "el capítulo 1 tenía que poder verse ya"
+    d = [x for x in g.lista() if x["id"] == t.id][0]
+    assert d["estado"] == "bajando", d
+    assert not existe("Descargas", "Mezcla", "Juego PC", "intro.avi")   # el juego de PC espera
+    d = esperar(g, t.id, limite=30)
+    assert d["estado"] == "listo" and d["intentos"] == 1, d             # se cortó y se reanudó
+    bajados = open(os.path.join(R, "Descargas", ".bajando", "bajados-%d" % t.id)).read().splitlines()
+    assert "T1/Cap 1.mp4" not in bajados[1] and "T1/Cap 2.mp4" not in bajados[1], bajados
+    assert existe("Videos", "Mezcla", "T1", "Cap 2.mp4")
+    assert existe("Descargas", "Mezcla", "Juego PC", "intro.avi")        # el juego de PC, entero
+    assert existe("Descargas", "Mezcla", "Juego PC", "juego.exe")
+    assert not existe("Descargas", ".televieja-hechos")
+    assert "2 videos" in d["resumen"], d["resumen"]
+    assert any("Ya podés usar" in n for n in g.tomar_novedades())
+
+
 def probar_directo_cortado():
     """Un link directo que se corta a la mitad: tiene que seguir desde donde quedó."""
     import http.server
@@ -350,6 +410,7 @@ def main():
     probar_web(g)
     probar_reintentos_y_fila()
     probar_directo_cortado()
+    probar_temprano()
     red = os.environ.get("TELEVIEJA_PRUEBA_RED")
     if red:
         probar_red(red)

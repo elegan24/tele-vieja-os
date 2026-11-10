@@ -437,6 +437,7 @@ PAGINA = """<!doctype html>
       if (d.estado === "bajando" && d.total) {
         detalle = "Archivo " + d.archivo + " de " + d.total + (d.actual ? " · " + d.actual : "") +
                   (d.porcentaje ? " · " + d.porcentaje + "%" : "");
+        if (d.resumen) detalle += " · Ya para usar: " + d.resumen;
       } else if (d.estado === "bajando") {
         detalle = d.actual || "Preguntándole a Google qué hay en el link...";
       } else if (d.estado === "reintentar" || d.estado === "esperando") {
