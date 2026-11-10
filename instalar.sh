@@ -53,8 +53,7 @@ PAQUETES=(
     python3 python3-pygame python3-qrcode python3-evdev fonts-dejavu-core
     mpv ffmpeg alsa-utils
     retroarch libretro-core-info
-    libretro-nestopia libretro-snes9x libretro-genesisplusgx
-    libretro-gambatte libretro-mgba
+    libretro-nestopia libretro-gambatte libretro-mgba
     poppler-utils libarchive-tools
     rsync ntfs-3g exfatprogs curl unzip sudo
     network-manager
@@ -68,7 +67,17 @@ for d in /sys/bus/pci/devices/*; do
         break
     fi
 done
-apt-get install -y --no-install-recommends "${PAQUETES[@]}"
+FALTARON=()
+if ! apt-get install -y --no-install-recommends "${PAQUETES[@]}"; then
+    # Si falta algún paquete, apt no instala ninguno: probamos de a uno y seguimos.
+    amarillo "   Algo no se pudo instalar todo junto: pruebo de a uno..."
+    for paquete in "${PAQUETES[@]}"; do
+        apt-get install -y --no-install-recommends "$paquete" >/dev/null 2>&1 || FALTARON+=("$paquete")
+    done
+    if [ ${#FALTARON[@]} -gt 0 ]; then
+        amarillo "   No se pudieron instalar: ${FALTARON[*]}"
+    fi
+fi
 
 verde "==> 2/7 Copiando TeleVieja a $APP..."
 rm -rf "${APP:?}/televieja" "${APP:?}/sistema" "${APP:?}/bin"
@@ -81,7 +90,7 @@ find "$APP" -name '__pycache__' -prune -exec rm -rf {} +
 
 verde "==> 3/7 Bajando emuladores que no vienen en Debian (Neo Geo, PlayStation, Super Nintendo liviano, GBA)..."
 if [ -n "$ARQ_LIBRETRO" ]; then
-    for core in fbneo snes9x2010 gpsp pcsx_rearmed mupen64plus_next; do
+    for core in fbneo snes9x2010 genesis_plus_gx gpsp pcsx_rearmed mupen64plus_next; do
         if [ -f "$APP/cores/${core}_libretro.so" ]; then
             echo "   $core ya estaba."
             continue
@@ -243,5 +252,8 @@ if [ -f /etc/default/grub ]; then
 fi
 
 echo
+if [ ${#FALTARON[@]} -gt 0 ]; then
+    amarillo "Ojo: no se instalaron ${FALTARON[*]}. Mandale una foto de esto a quien te ayuda."
+fi
 verde "¡Listo! Reiniciá con:  sudo reboot"
 echo "Cargá tus cosas en $R (o con un pendrive desde el menú)."
