@@ -347,6 +347,11 @@ Límites (los pone Google, no TeleVieja):
 - Lo demás recién se acomoda cuando está todo bajado. Si después de varios intentos
   siguen faltando archivos, acomoda lo que llegó y avisa cuántos faltaron.
 - Un link que **no es público** no se reintenta (no se arregla esperando).
+- **Bajar lo que faltó:** la netbook recuerda qué archivos de cada link ya bajó. Si una descarga
+  terminó con faltantes, el botón **"Bajar lo que faltó"** (en el celu, o A en *Opciones →
+  Descargas*) baja solo esos. Pegar el mismo link otra vez hace lo mismo: no repite lo que ya
+  está. **"Reintentar ahora"** adelanta un reintento que estaba esperando (ojo: si fue por cuota
+  de Google, hasta que Google no lo libere —normalmente al otro día— va a volver a fallar).
 - Los links directos (por ejemplo de MediaFire) también siguen desde donde se cortaron, si el
   sitio lo permite.
 - Cualquiera conectado a tu WiFi puede usar la página, igual que el control.

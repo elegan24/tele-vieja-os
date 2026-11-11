@@ -3,6 +3,7 @@
 Se agregan desde la página del celu. Cada descarga se baja a una carpeta
 temporal y, al terminar, acomodar.py la reparte en las carpetas de TeleVieja.
 """
+import hashlib
 import itertools
 import json
 import os
@@ -66,6 +67,35 @@ ESPERAS = {
 }
 
 
+def clave_de_link(url):
+    """El mismo link de Drive puede venir escrito distinto (?usp=sharing, /view...): su ID."""
+    m = re.search(r"/(?:folders|d)/([\w-]{10,})", url) or re.search(r"[?&]id=([\w-]{10,})", url)
+    return ("drive-" + m.group(1)) if m else hashlib.sha1(url.encode("utf-8")).hexdigest()[:20]
+
+
+def archivo_registro(url):
+    """Qué archivos de este link ya se bajaron (para bajar solo lo que falta)."""
+    return os.path.join(config.CONFIG_DIR, "bajados", clave_de_link(url) + ".txt")
+
+
+def leer_registro(url):
+    try:
+        with open(archivo_registro(url), encoding="utf-8") as f:
+            return {l.rstrip("\n") for l in f if l.strip()}
+    except OSError:
+        return set()
+
+
+def anotar_registro(url, relativas):
+    if not relativas:
+        return
+    ruta = archivo_registro(url)
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    with open(ruta, "a", encoding="utf-8") as f:
+        for r in relativas:
+            f.write(r + "\n")
+
+
 def hay_internet():
     for host in ("drive.google.com", "www.google.com"):
         try:
@@ -119,7 +149,7 @@ def clasificar(textos):
 class Trabajo:
     CAMPOS = ("id", "url", "estado", "nombre", "archivo", "total", "porcentaje", "mensaje",
               "avisos", "resumen", "creado", "intentos", "proximo", "solo_acomodar",
-              "aviso_temprano")
+              "aviso_temprano", "faltantes")
 
     def __init__(self, url, ident=None):
         self.id = ident if ident is not None else next(_numeros)
@@ -142,6 +172,7 @@ class Trabajo:
         self.proximo = 0.0          # cuándo reintentar (hora en segundos)
         self.solo_acomodar = False  # se cortó mientras acomodaba: no hace falta bajar de nuevo
         self.aviso_temprano = False  # ya se avisó que hay cosas para usar
+        self.faltantes = 0          # archivos que no se pudieron bajar en la última pasada
 
     def a_guardar(self):
         return {c: getattr(self, c) for c in self.CAMPOS}
@@ -164,7 +195,7 @@ class Trabajo:
             "actual": actual, "mensaje": self.mensaje, "avisos": self.avisos[-3:],
             "carpetas_leidas": self.carpetas_leidas, "archivos_vistos": self.archivos_vistos,
             "resumen": acomodar.describir(self.resumen) if self.resumen else "",
-            "intentos": self.intentos,
+            "intentos": self.intentos, "faltantes": self.faltantes,
         }
 
 
@@ -241,6 +272,27 @@ class Gestor:
         self._guardar()
         self.hay_trabajo.set()
         return trabajo
+
+    def reintentar(self, ident):
+        """"Reintentar ahora" (si estaba esperando) o "Bajar lo que faltó" (si terminó incompleta)."""
+        with self.lock:
+            t = next((t for t in self.trabajos if t.id == ident), None)
+            if t is None:
+                return False
+            if t.estado == "reintentar":
+                t.proximo = 0
+                accion = "ya"
+            elif t.estado in ("listo", "error") and (t.faltantes or t.estado == "error"):
+                accion = "de nuevo"
+            else:
+                return False
+        if accion == "de nuevo":
+            nuevo = self.agregar(t.url)   # baja solo lo que falta (lo demás está anotado)
+            nuevo.nombre = t.nombre
+            t.faltantes = 0
+        self._guardar()
+        self.hay_trabajo.set()
+        return True
 
     def cancelar(self, ident):
         with self.lock:
@@ -328,6 +380,17 @@ class Gestor:
         if not trabajo.solo_acomodar:
             trabajo.mensaje = ""
             trabajo.avisos = []
+            ya = leer_registro(trabajo.url)
+            if ya:
+                hechos = os.path.join(carpeta, ".televieja-hechos")
+                try:
+                    with open(hechos, encoding="utf-8") as f:
+                        ya -= {l.rstrip("\n") for l in f}
+                except OSError:
+                    pass
+                with open(hechos, "a", encoding="utf-8") as f:
+                    for r in sorted(ya):
+                        f.write(r + "\n")
             if es_drive(trabajo.url):
                 ok = self._bajar_drive(trabajo, carpeta)
             else:
@@ -349,9 +412,10 @@ class Gestor:
             return
         if not cat:
             return
-        # anotado: si la descarga se reanuda, no se vuelve a bajar
+        # anotado: si la descarga se reanuda (o se pega el link otra vez), no se vuelve a bajar
         with open(os.path.join(carpeta, ".televieja-hechos"), "a", encoding="utf-8") as f:
             f.write(relativa + "\n")
+        anotar_registro(trabajo.url, [relativa])
         trabajo.resumen[cat] = trabajo.resumen.get(cat, 0) + 1
         if not trabajo.aviso_temprano:
             trabajo.aviso_temprano = True
@@ -365,6 +429,15 @@ class Gestor:
 
         def avisar(texto):
             trabajo.actual = texto
+        # anotar lo que llegó (relativo a la carpeta de la descarga), antes de repartirlo
+        base = os.path.join(carpeta, trabajo.nombre)
+        if os.path.isdir(base):
+            llegaron = []
+            for raiz, _, archivos in os.walk(base):
+                for a in archivos:
+                    if not a.endswith(".part") and not a.startswith(".televieja"):
+                        llegaron.append(os.path.relpath(os.path.join(raiz, a), base))
+            anotar_registro(trabajo.url, llegaron)
         for cat, n in acomodar.acomodar(carpeta, self.raiz, avisar).items():
             trabajo.resumen[cat] = trabajo.resumen.get(cat, 0) + n
         trabajo.estado = "listo"
@@ -455,6 +528,8 @@ class Gestor:
                                                       datos["aviso"]))
                 if "error" in datos:
                     error = datos["error"]
+                if "fallados" in datos:
+                    trabajo.faltantes = datos["fallados"]
                 if datos.get("fallados"):
                     trabajo.mensaje = "%d archivos no se pudieron bajar." % datos["fallados"]
             elif renglon.startswith("Retrieving folder ") and not trabajo.total:

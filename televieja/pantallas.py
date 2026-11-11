@@ -1099,7 +1099,7 @@ class Descargas(Lista):
                "reintentar": "reintenta luego"}
 
     def __init__(self):
-        super().__init__("Descargas", ayuda="B: volver   (se agregan desde el celu)")
+        super().__init__("Descargas", ayuda="A: reintentar   B: volver")
         self.proxima = 0
         self.cargar()
 
@@ -1115,13 +1115,29 @@ class Descargas(Lista):
                 extra = "leyendo lista (%d)" % (d["carpetas_leidas"] + d["archivos_vistos"])
             else:
                 extra = self.ESTADOS.get(d["estado"], d["estado"])
-            self.items.append(Item(d["nombre"], icono="bajar", extra=extra,
+            if d["estado"] == "listo" and d.get("faltantes"):
+                extra = "faltan %d" % d["faltantes"]
+            self.items.append(Item(d["nombre"], lambda app, d=d: self._reintentar(app, d),
+                                   icono="bajar", extra=extra,
                                    apagado=d["estado"] in ("error", "cancelado")))
         if not self.items:
             self.items.append(Item("No hay descargas. Pegá un link de Drive en la página "
                                    "del celu (Opciones > Control desde el celular).", apagado=True))
         self.sel = anterior
         self.ajustar()
+
+    def _reintentar(self, app, d):
+        from . import remoto
+        puede = d["estado"] == "reintentar" or d["estado"] == "error" or \
+            (d["estado"] == "listo" and d.get("faltantes"))
+        if not puede or not remoto.gestor:
+            return
+        texto = "¿Reintentar ahora?" if d["estado"] == "reintentar" else "¿Bajar lo que faltó?"
+
+        def si(app):
+            remoto.gestor.reintentar(d["id"])
+            app.avisar("Listo: se baja solo lo que falta", 3)
+        app.poner(Confirmar(texto, si))
 
     def actualizar(self, app, dt):
         super().actualizar(app, dt)

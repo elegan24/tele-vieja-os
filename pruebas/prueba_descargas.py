@@ -310,6 +310,65 @@ ev(listo=1, fallados=0)
 '''
 
 
+FALSO_FALTA = r'''
+import json, os, sys
+url, destino = sys.argv[1], sys.argv[2]
+def ev(**d): print("@@ " + json.dumps(d), flush=True)
+lista = ["Cap 1.mp4", "Cap 2.mp4", "Cap 3.mp4", "Cap 4.mp4"]
+p = os.path.join(destino, ".televieja-hechos")
+hechos = {l.strip() for l in open(p)} if os.path.exists(p) else set()
+registro = os.path.join(os.path.dirname(os.path.dirname(destino)), "pedidos-falta.txt")
+cuota = os.path.join(os.path.dirname(os.path.dirname(destino)), "cuota-falta")
+ev(nombre="Dibus"); ev(total=4, incompletas=0); ev(lista=lista)
+fallados = 0
+for i, rel in enumerate(lista, 1):
+    if rel in hechos:
+        ev(archivo=i, de=4, ruta=rel, ok=True, nuevo=False); continue
+    open(registro, "a").write(rel + "\n")
+    if rel in ("Cap 3.mp4", "Cap 4.mp4") and not os.path.exists(cuota):
+        fallados += 1
+        ev(aviso="Google frenó la descarga: este archivo se bajó demasiadas veces hoy (cuota).", ruta=rel)
+        ev(archivo=i, de=4, ruta=rel, ok=False, nuevo=True); continue
+    ruta = os.path.join(destino, "Dibus", rel)
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    open(ruta, "w").write("x")
+    ev(archivo=i, de=4, ruta=rel, ok=True, nuevo=True)
+ev(listo=4 - fallados, fallados=fallados)
+'''
+
+
+def probar_falta():
+    """Termina con faltantes; "Bajar lo que faltó" (o pegar el link otra vez) baja solo eso."""
+    assert descargas.clave_de_link("https://drive.google.com/drive/folders/1AbCdEfGhIjK?usp=sharing") == \
+        descargas.clave_de_link("https://drive.google.com/drive/folders/1AbCdEfGhIjK")
+    falso = os.path.join(TMP, "falso_falta.py")
+    with open(falso, "w") as f:
+        f.write(FALSO_FALTA)
+    descargas.BAJAR_DRIVE = falso
+    pedidos = os.path.join(R, "Descargas", "pedidos-falta.txt")
+    g = descargas.Gestor(R, archivo=os.path.join(TMP, "fila7.json"), internet=lambda: True,
+                         esperas={"cuota": []})          # sin reintentos automáticos: termina ya
+    t = g.agregar("https://drive.google.com/drive/folders/1FaltaFaltaFalta?usp=sharing")
+    d = esperar(g, t.id)
+    assert d["estado"] == "listo" and d["faltantes"] == 2, d
+    assert existe("Videos", "Dibus", "Cap 1.mp4") and not existe("Videos", "Dibus", "Cap 3.mp4")
+    open(os.path.join(R, "Descargas", "cuota-falta"), "w").write("Google ya liberó")
+    os.remove(pedidos)
+    assert g.reintentar(t.id)                            # "Bajar lo que faltó"
+    nuevo = [x for x in g.lista() if x["id"] != t.id and x["estado"] != "listo"
+             and "1FaltaFaltaFalta" in x["url"]][0]
+    d2 = esperar(g, nuevo["id"])
+    assert d2["estado"] == "listo" and d2["faltantes"] == 0, d2
+    assert open(pedidos).read().split("\n")[:-1] == ["Cap 3.mp4", "Cap 4.mp4"], open(pedidos).read()
+    assert existe("Videos", "Dibus", "Cap 3.mp4") and existe("Videos", "Dibus", "Cap 4.mp4")
+    assert not [x for x in g.lista() if x["id"] == t.id][0]["faltantes"]
+    # pegar el mismo link (escrito distinto) otra vez: no baja nada de nuevo
+    os.remove(pedidos)
+    t3 = g.agregar("https://drive.google.com/drive/folders/1FaltaFaltaFalta")
+    assert esperar(g, t3.id)["estado"] == "listo"
+    assert not os.path.exists(pedidos), "no tenía que volver a bajar nada"
+
+
 def probar_hora():
     """Si falla por la fecha (batería agotada), pone la netbook en hora y reintenta enseguida."""
     assert descargas.clasificar([descargas.legible(
@@ -447,6 +506,7 @@ def main():
     probar_directo_cortado()
     probar_temprano()
     probar_hora()
+    probar_falta()
     red = os.environ.get("TELEVIEJA_PRUEBA_RED")
     if red:
         probar_red(red)

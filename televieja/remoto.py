@@ -181,9 +181,13 @@ class _Manejador(BaseHTTPRequestHandler):
         if self.path == "/descargar":
             self._descargar()
             return
-        m = re.match(r"^/descargas/(\d+)/cancelar$", self.path)
+        m = re.match(r"^/descargas/(\d+)/(cancelar|reintentar)$", self.path)
         if m:
-            ok = bool(gestor) and gestor.cancelar(int(m.group(1)))
+            try:
+                accion = gestor.cancelar if m.group(2) == "cancelar" else gestor.reintentar
+                ok = bool(gestor) and accion(int(m.group(1)))
+            except ValueError:
+                ok = False
             self._json(200 if ok else 404, {"ok": ok})
             return
         boton = self.path[3:] if self.path.startswith("/b/") else ""
@@ -455,6 +459,11 @@ PAGINA = """<!doctype html>
         (d.mensaje ? '<div class="aviso">' + texto(d.mensaje) + "</div>" : "") +
         d.avisos.map((a) => '<div class="aviso">' + texto(a) + "</div>").join("") +
         (d.estado === "bajando" ? '<div class="barra"><i style="width:' + avance + '%"></i></div>' : "") +
+        (d.estado === "reintentar"
+          ? '<button data-reintentar="' + d.id + '">Reintentar ahora</button> ' : "") +
+        ((d.estado === "listo" && d.faltantes) || d.estado === "error"
+          ? '<button data-reintentar="' + d.id + '">Bajar lo que faltó' +
+            (d.faltantes ? " (" + d.faltantes + ")" : "") + "</button>" : "") +
         (d.estado === "esperando" || d.estado === "bajando" || d.estado === "reintentar"
           ? '<button data-cancelar="' + d.id + '">Cancelar</button>' : "") + "</div>";
     }).join("");
@@ -478,6 +487,8 @@ PAGINA = """<!doctype html>
   listaDescargas.addEventListener("click", (e) => {
     const id = e.target.dataset.cancelar;
     if (id) fetch("/descargas/" + id + "/cancelar", { method: "POST" }).then(actualizarDescargas);
+    const otra = e.target.dataset.reintentar;
+    if (otra) fetch("/descargas/" + otra + "/reintentar", { method: "POST" }).then(actualizarDescargas);
   });
   actualizarDescargas();
   setInterval(actualizarDescargas, 2000);
