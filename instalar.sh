@@ -41,6 +41,8 @@ esac
 
 verde "==> 1/7 Instalando programas (puede tardar bastante)..."
 export DEBIAN_FRONTEND=noninteractive
+# Que apt nunca se quede esperando una pregunta (por ejemplo, sobre archivos de configuración).
+APT_OPCIONES=(-o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold)
 # Firmware de placas WiFi, sonido y video de otras marcas (para poder pasar el disco
 # a otra netbook): en Debian 12 está en "non-free-firmware".
 if [ -f /etc/apt/sources.list ] && ! grep -rqs 'non-free-firmware' /etc/apt/sources.list /etc/apt/sources.list.d/; then
@@ -68,11 +70,11 @@ for d in /sys/bus/pci/devices/*; do
     fi
 done
 FALTARON=()
-if ! apt-get install -y --no-install-recommends "${PAQUETES[@]}"; then
+if ! apt-get install -y "${APT_OPCIONES[@]}" --no-install-recommends "${PAQUETES[@]}"; then
     # Si falta algún paquete, apt no instala ninguno: probamos de a uno y seguimos.
     amarillo "   Algo no se pudo instalar todo junto: pruebo de a uno..."
     for paquete in "${PAQUETES[@]}"; do
-        apt-get install -y --no-install-recommends "$paquete" >/dev/null 2>&1 || FALTARON+=("$paquete")
+        apt-get install -y "${APT_OPCIONES[@]}" --no-install-recommends "$paquete" >/dev/null 2>&1 || FALTARON+=("$paquete")
     done
     if [ ${#FALTARON[@]} -gt 0 ]; then
         amarillo "   No se pudieron instalar: ${FALTARON[*]}"
@@ -138,11 +140,11 @@ if [ "${SIN_WINE:-0}" != 1 ]; then
     if [ "$ARQ" = amd64 ]; then
         dpkg --add-architecture i386
         apt-get update
-        apt-get install -y --no-install-recommends wine wine64 wine32:i386 libwine:i386 \
+        apt-get install -y "${APT_OPCIONES[@]}" --no-install-recommends wine wine64 wine32:i386 libwine:i386 \
             fonts-wine libgl1-mesa-dri:i386 libasound2-plugins:i386 libsdl2-2.0-0:i386 \
             || amarillo "   No se pudo instalar Wine: los juegos de PC no van a andar."
     else
-        apt-get install -y --no-install-recommends wine wine32 fonts-wine libasound2-plugins \
+        apt-get install -y "${APT_OPCIONES[@]}" --no-install-recommends wine wine32 fonts-wine libasound2-plugins \
             || amarillo "   No se pudo instalar Wine: los juegos de PC no van a andar."
     fi
 fi

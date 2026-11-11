@@ -290,6 +290,7 @@ class Espera(Pantalla):
         self.resultado = None
         self.error = None
         self.listo = False
+        self.detalle = ""
         self.t0 = time.monotonic()
         threading.Thread(target=self._correr, daemon=True).start()
 
@@ -310,6 +311,12 @@ class Espera(Pantalla):
         f = app.fuentes
         ui.escribir(sup, f.item, self.texto, ui.BLANCO, (ANCHO // 2, ALTO // 2 - 50), "center")
         t = time.monotonic() - self.t0
+        if self.detalle:  # qué está haciendo ahora (por ejemplo, el paso de la actualización)
+            ui.escribir(sup, f.chica, ui.recortar(f.chica, self.detalle, ANCHO - 2 * MARGEN_X, f.puntos),
+                        ui.GRIS, (ANCHO // 2, ALTO // 2 + 75), "midtop")
+        if t > 60:
+            ui.escribir(sup, f.chica, "Hace %d min" % (t // 60), ui.GRIS_OSCURO,
+                        (ANCHO // 2, ALTO // 2 + 100), "midtop")
         for i in range(8):
             ang = i / 8 * 6.283 + t * 4
             x = ANCHO // 2 + int(26 * math.cos(ang))

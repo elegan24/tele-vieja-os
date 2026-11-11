@@ -660,10 +660,26 @@ def actualizar(app):
     """Baja la versión nueva de GitHub, la instala y reinicia el menú."""
     script = os.path.join(config.BIN_DIR, "actualizar.sh")
 
+    espera = None
+
     def trabajo():
-        r = subprocess.run(["sudo", "-n", script], capture_output=True, text=True)
-        lineas = [l for l in (r.stdout + r.stderr).splitlines() if l.strip()]
-        return r.returncode, lineas
+        """Corre la actualización y va mostrando en qué paso está."""
+        import re
+        proceso = subprocess.Popen(["sudo", "-n", script], stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, text=True, errors="replace")
+        lineas = []
+        for linea in proceso.stdout:
+            linea = re.sub(r"\x1b\[[0-9;]*m", "", linea).strip()  # sin los colores
+            if not linea:
+                continue
+            lineas.append(linea)
+            lineas = lineas[-50:]
+            if espera is not None:
+                if linea.startswith("==>"):
+                    espera.detalle = linea[3:].strip()   # los pasos del instalador ("1/7 ...")
+                elif not espera.detalle:
+                    espera.detalle = linea               # antes del primer paso
+        return proceso.wait(), lineas
 
     def terminar(app, resultado, error):
         if error:
@@ -683,7 +699,8 @@ def actualizar(app):
         else:
             app.poner(Mensaje("No se pudo actualizar", ultima or "Error desconocido"))
 
-    app.poner(Espera("Actualizar", "Actualizando... puede tardar unos minutos", trabajo, terminar))
+    espera = Espera("Actualizar", "Actualizando (unos minutos)...", trabajo, terminar)
+    app.poner(espera)
 
 
 def copiar_pendrive(app):
