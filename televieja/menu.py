@@ -115,6 +115,8 @@ class App:
         self.servidor_celular = None
         self.ultima_actividad = time.monotonic()
         self.bateria = None
+        self.red = None
+        self.proxima_red = 0.0
         self.bateria_avisada = 100
         self.proxima_bateria = 0.0
         if config.opcion_si(self.opciones, "CONTROL_CELULAR"):
@@ -225,6 +227,7 @@ class App:
         reloj = ui.escribir(sup, f.item, time.strftime("%H:%M"), ui.BLANCO,
                             (ANCHO - MARGEN_X, MARGEN_Y + 4), "topright")
         izquierda_reloj = self._dibujar_bateria(sup, reloj.left - 12, reloj.centery)
+        izquierda_reloj = self._dibujar_red(sup, izquierda_reloj - 12, reloj.centery)
         titulo = ui.recortar(f.titulo, p.titulo or "", izquierda_reloj - MARGEN_X - 50, f.puntos)
         ui.escribir(sup, f.titulo, titulo, ui.AMARILLO, (MARGEN_X + 38, MARGEN_Y))
         pygame.draw.line(sup, ui.GRIS_OSCURO, (MARGEN_X, MARGEN_Y + 48), (ANCHO - MARGEN_X, MARGEN_Y + 48), 2)
@@ -295,6 +298,43 @@ class App:
                 (cx + 2, cy - 9), (cx - 5, cy + 1), (cx, cy + 1), (cx - 2, cy + 9),
                 (cx + 5, cy - 1), (cx, cy - 1)], 1)
         return pila.left
+
+    def _dibujar_red(self, sup, derecha, centro_y):
+        """Enchufe si es por cable, rayitas si es por WiFi, tachado si no hay conexión."""
+        r = self.red
+        if r is None:
+            return derecha
+        x, y = derecha - 22, centro_y - 10
+        if r["tipo"] == "cable":
+            pygame.draw.rect(sup, ui.BLANCO, (x + 4, y + 2, 14, 11), border_radius=2)
+            for i in range(3):
+                pygame.draw.line(sup, ui.OSCURO, (x + 7 + i * 4, y + 4), (x + 7 + i * 4, y + 8), 2)
+            pygame.draw.line(sup, ui.BLANCO, (x + 11, y + 13), (x + 11, y + 20), 3)
+            return x
+        senal = r["senal"] if r["tipo"] == "wifi" else 0
+        barras = 0 if r["tipo"] is None else (4 if senal is None else max(1, min(4, (senal + 24) // 25)))
+        for i in range(4):
+            alto = 5 + i * 5
+            color = ui.BLANCO if i < barras else ui.GRIS_OSCURO
+            pygame.draw.rect(sup, color, (x + i * 6, y + 20 - alto, 4, alto))
+        if r["tipo"] is None:  # sin conexión: tachado
+            pygame.draw.line(sup, ui.ROJO, (x - 1, y + 21), (x + 23, y - 1), 3)
+        return x
+
+    def revisar_red(self):
+        """Cada 5 segundos: ¿cable, WiFi o nada?"""
+        ahora = time.monotonic()
+        if ahora < self.proxima_red:
+            return
+        self.proxima_red = ahora + 5
+        from . import red
+        nueva = red.estado()
+        if nueva != self.red:
+            if self.red is not None and nueva["tipo"] != self.red["tipo"]:
+                self.avisar({"cable": "Conectada por cable", "wifi": "Conectada por WiFi",
+                             None: "Sin conexión a internet"}[nueva["tipo"]], 2.5)
+            self.red = nueva
+            self.sucio = True
 
     def revisar_bateria(self):
         """Cada 30 segundos mira la batería; avisa al 15% y al 5% si no está enchufada."""
@@ -593,6 +633,7 @@ class App:
         self.actual.actualizar(self, dt)
         self.revisar_protector()
         self.revisar_bateria()
+        self.revisar_red()
         self.revisar_discos()
         if remoto.gestor:
             novedades = remoto.gestor.tomar_novedades()
