@@ -12,6 +12,7 @@ import zipfile
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 os.environ["SDL_AUDIODRIVER"] = "dummy"
 os.environ["TELEVIEJA_VENTANA"] = "1"
+os.environ["TELEVIEJA_SIN_HORA"] = "1"
 TMP = tempfile.mkdtemp(prefix="televieja-prueba-")
 os.environ["TELEVIEJA_RAIZ"] = os.path.join(TMP, "TeleVieja")
 os.environ["TELEVIEJA_CONFIG"] = os.path.join(TMP, "config")

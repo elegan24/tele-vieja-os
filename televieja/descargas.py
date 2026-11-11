@@ -62,6 +62,7 @@ ESTADOS_ACTIVOS = ("esperando", "bajando", "acomodando", "reintentar")
 ESPERAS = {
     "red": [2, 5, 15, 30, 60, 120],          # se cortó internet, se colgó algo
     "cuota": [180, 180, 240, 360, 480, 720],  # Google frenó por "cuota": esperar horas
+    "hora": [0.2, 2, 10, 30],                 # fecha mal: se pone en hora y se reintenta enseguida
 }
 
 
@@ -75,8 +76,24 @@ def hay_internet():
     return False
 
 
+ERRORES_DE_HORA = ("CERTIFICATE_VERIFY_FAILED", "certificate is not yet valid",
+                   "certificate has expired", "certificate verify failed")
+
+
+def poner_en_hora():
+    """La fecha mal hace fallar todo lo seguro (https). bin/hora.sh la corrige (con sudo)."""
+    script = os.path.join(config.BIN_DIR, "hora.sh")
+    try:
+        r = subprocess.run(["sudo", "-n", script], capture_output=True, text=True, timeout=90)
+        return r.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def legible(mensaje):
     """Los errores técnicos de conexión, en criollo."""
+    if any(x in mensaje for x in ERRORES_DE_HORA):
+        return "La fecha de la netbook está mal (se quedó sin batería): la pongo en hora y reintento."
     if any(x in mensaje for x in ("HTTPSConnectionPool", "ConnectionError", "Connection reset",
                                   "Connection aborted", "timed out", "Max retries",
                                   "Name or service", "Temporary failure", "urlopen error",
@@ -86,8 +103,10 @@ def legible(mensaje):
 
 
 def clasificar(textos):
-    """Qué tipo de problema hubo: cuota, permiso, disco o red (lo demás se trata como red)."""
+    """Qué tipo de problema hubo: hora, cuota, permiso, disco o red (lo demás, como red)."""
     junto = " ".join(textos).lower()
+    if "fecha de la netbook" in junto or "certificate" in junto:
+        return "hora"
     if "compartido" in junto or "permission" in junto or "público" in junto:
         return "permiso"
     if "disco" in junto or "no space" in junto:
@@ -152,12 +171,13 @@ class Trabajo:
 class Gestor:
     """Fila de descargas. Se guarda en disco: si se reinicia la netbook, sigue sola."""
 
-    def __init__(self, raiz=None, archivo=None, esperas=None, internet=None):
+    def __init__(self, raiz=None, archivo=None, esperas=None, internet=None, hora=None):
         self.raiz = raiz or config.RAIZ
         self.temporal = os.path.join(self.raiz, "Descargas", ".bajando")
         self.archivo = archivo or os.path.join(config.CONFIG_DIR, "descargas.json")
         self.esperas = esperas or ESPERAS
         self.internet = internet or hay_internet
+        self.poner_en_hora = hora or poner_en_hora
         self.trabajos = []
         self.lock = threading.Lock()
         self.hay_trabajo = threading.Event()
@@ -359,7 +379,10 @@ class Gestor:
     def _fallo(self, trabajo, carpeta):
         """Algo no se bajó: según qué pasó, se reintenta más tarde o se da por terminada."""
         trabajo.mensaje = legible(trabajo.mensaje or "")
+        trabajo.avisos = [legible(a) for a in trabajo.avisos]
         tipo = clasificar([trabajo.mensaje] + trabajo.avisos)
+        if tipo == "hora":
+            self.poner_en_hora()
         esperas = self.esperas.get(tipo)
         if esperas and trabajo.intentos < len(esperas):
             minutos = esperas[trabajo.intentos]
@@ -367,6 +390,7 @@ class Gestor:
             trabajo.estado = "reintentar"
             trabajo.proximo = time.time() + minutos * 60
             trabajo.mensaje = ("Google frenó la descarga (cuota). " if tipo == "cuota" else
+                               "La fecha estaba mal: la puse en hora. " if tipo == "hora" else
                                "Se cortó la descarga. ") + \
                 "Lo ya bajado se guarda; reintenta sola (intento %d de %d)." % (
                     trabajo.intentos, len(esperas))

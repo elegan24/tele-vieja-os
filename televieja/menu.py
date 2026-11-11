@@ -4,6 +4,7 @@ import math
 import os
 import subprocess
 import sys
+import threading
 import time
 
 os.environ.setdefault("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1")
@@ -125,6 +126,7 @@ class App:
             if self.servidor_celular:
                 from . import descargas
                 remoto.gestor = descargas.Gestor()
+        threading.Thread(target=self._poner_en_hora_si_hace_falta, daemon=True).start()
         self.poner(menu_principal(self))
 
     # --- pantalla física ---------------------------------------------------
@@ -141,6 +143,24 @@ class App:
         self.lienzo = pygame.Surface((ANCHO, ALTO))
         self.fondo = ui.fondo()
         self.sucio = True
+
+    @staticmethod
+    def _poner_en_hora_si_hace_falta():
+        """Si la batería se agotó, la netbook arranca con la fecha mal: se corrige sola."""
+        if os.environ.get("TELEVIEJA_SIN_HORA"):
+            return  # (en las pruebas no se toca el reloj)
+        try:
+            r = subprocess.run(["timedatectl", "show", "-p", "NTPSynchronized", "--value"],
+                               capture_output=True, text=True, timeout=10)
+            if r.stdout.strip() == "yes":
+                return
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        from . import descargas
+        for _ in range(10):  # puede que el WiFi todavía no se conectó: se insiste un rato
+            if descargas.poner_en_hora():
+                return
+            time.sleep(30)
 
     def aplicar_tema(self, nombre):
         """Cambia el tema al instante (colores, adornos y sonidos)."""

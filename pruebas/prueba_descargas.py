@@ -294,6 +294,41 @@ ev(listo=len(lista), fallados=0)
 '''
 
 
+FALSO_HORA = r'''
+import json, os, sys
+url, destino = sys.argv[1], sys.argv[2]
+def ev(**d): print("@@ " + json.dumps(d), flush=True)
+marca = os.path.join(os.path.dirname(destino), "hora-" + os.path.basename(destino))
+if not os.path.exists(marca):     # la primera vez: la fecha está mal
+    open(marca, "w").write("1")
+    ev(error="La fecha de la netbook está mal (certificate): hay que ponerla en hora."); sys.exit(1)
+ev(nombre="Algo"); ev(total=1, incompletas=0)
+os.makedirs(os.path.join(destino, "Algo"), exist_ok=True)
+open(os.path.join(destino, "Algo", "Peli.mp4"), "w").write("x")
+ev(archivo=1, de=1, ruta="Peli.mp4", ok=True, nuevo=True)
+ev(listo=1, fallados=0)
+'''
+
+
+def probar_hora():
+    """Si falla por la fecha (batería agotada), pone la netbook en hora y reintenta enseguida."""
+    assert descargas.clasificar([descargas.legible(
+        "SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate "
+        "verify failed: certificate is not yet valid'))")]) == "hora"
+    falso = os.path.join(TMP, "falso_hora.py")
+    with open(falso, "w") as f:
+        f.write(FALSO_HORA)
+    descargas.BAJAR_DRIVE = falso
+    veces = []
+    g = descargas.Gestor(R, archivo=os.path.join(TMP, "fila6.json"), internet=lambda: True,
+                         hora=lambda: veces.append(1) or True, esperas={"hora": [0.002]})
+    t = g.agregar("https://drive.google.com/drive/folders/HORA")
+    d = esperar(g, t.id, limite=20)
+    assert d["estado"] == "listo" and d["intentos"] == 1, d
+    assert veces == [1], veces
+    assert existe("Videos", "Algo", "Peli.mp4")
+
+
 def probar_temprano():
     """Lo que ya llegó se puede usar mientras baja el resto (y no se vuelve a bajar)."""
     from televieja import acomodar as ac
@@ -411,6 +446,7 @@ def main():
     probar_reintentos_y_fila()
     probar_directo_cortado()
     probar_temprano()
+    probar_hora()
     red = os.environ.get("TELEVIEJA_PRUEBA_RED")
     if red:
         probar_red(red)

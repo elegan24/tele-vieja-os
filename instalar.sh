@@ -56,7 +56,7 @@ PAQUETES=(
     libretro-nestopia libretro-gambatte libretro-mgba
     poppler-utils libarchive-tools
     rsync ntfs-3g exfatprogs curl unzip sudo
-    network-manager iw
+    network-manager iw systemd-timesyncd util-linux-extra
     firmware-misc-nonfree firmware-realtek firmware-iwlwifi firmware-atheros
     firmware-brcm80211 firmware-sof-signed firmware-intel-sound
 )
@@ -239,7 +239,7 @@ fi
 verde "==> 6/7 Permisos (joystick, sonido, apagar, discos USB)..."
 usermod -aG input,audio,video "$USUARIO"
 cat > /etc/sudoers.d/televieja <<EOF
-$USUARIO ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl reboot, $APP/bin/importar-usb.sh, $APP/bin/actualizar.sh, $APP/bin/wifi.py
+$USUARIO ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff, /usr/bin/systemctl reboot, $APP/bin/importar-usb.sh, $APP/bin/actualizar.sh, $APP/bin/wifi.py, $APP/bin/hora.sh
 EOF
 chmod 440 /etc/sudoers.d/televieja
 visudo -cf /etc/sudoers.d/televieja >/dev/null
@@ -289,6 +289,10 @@ chmod 755 /etc/network/if-up.d/televieja-wifi
 for placa in /sys/class/net/wl*; do
     [ -e "$placa" ] && iw dev "$(basename "$placa")" set power_save off 2>/dev/null || true
 done
+
+# Hora automática por internet (si la batería se agota, la netbook pierde la fecha).
+timedatectl set-ntp true >/dev/null 2>&1 || true
+systemctl enable --now systemd-timesyncd >/dev/null 2>&1 || true
 
 # Sin suspensiones: la netbook se usa como una tele (con la tapa cerrada, enchufada a la
 # tele). Cerrar la tapa o la tecla de "dormir" no la suspenden; el botón de encendido apaga.

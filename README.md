@@ -549,6 +549,7 @@ Para volver al menú desde la terminal: `startx`.
 | El joystick no responde en los juegos | *Opciones → Configurar joystick* |
 | Un video anda trabado | Pasalo a 480p (ver arriba) |
 | El joystick del celu dice "No se pudo crear el joystick" | Reiniciá la netbook (carga el módulo `uinput`). Si sigue, volvé a correr `sudo ./instalar.sh` |
+| Las descargas fallan después de que se agotó la batería | La netbook perdió la fecha y sin fecha no anda internet "seguro". TeleVieja se pone en hora sola al arrancar (y al fallar una descarga por eso). A mano: `sudo /opt/televieja/bin/hora.sh` |
 | Se cuelga (hay que sacarle la batería) | Actualizá y reiniciá: en las Intel viejas el video usa un modo más estable. Si sigue, fijate la temperatura: `cat /sys/class/thermal/thermal_zone*/temp` (en milésimas de grado; más de 90000 es mucho) y limpiale el ventilador |
 | Se suspende sola (pantalla negra, lucecita titilando) | Actualizá: TeleVieja ya no se suspende al cerrar la tapa ni con la tecla de "dormir". Para despertarla ahora, apretá el botón de encendido un instante |
 | El WiFi se corta cada tanto | Volvé a correr `sudo ./instalar.sh` (apaga el ahorro de energía del WiFi) y reiniciá |

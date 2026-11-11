@@ -41,6 +41,8 @@ def traducir(mensaje):
                 "\"Cualquier persona con el enlace\".")
     if "No space left" in mensaje:
         return "Se llenó el disco."
+    if "CERTIFICATE_VERIFY_FAILED" in mensaje or "certificate" in mensaje.lower():
+        return "La fecha de la netbook está mal (certificate): hay que ponerla en hora."
     if any(x in mensaje for x in ("HTTPSConnectionPool", "ConnectionError", "Connection reset",
                                   "Connection aborted", "timed out", "Max retries",
                                   "Name or service", "Temporary failure", "NameResolution")):
