@@ -1,4 +1,6 @@
-# 📺 TeleVieja OS
+<p align="center"><img src="sistema/logo-sticker.png" width="160" alt=""></p>
+
+# 📺 Frecuencia 99
 
 Convierte una netbook vieja (la del plan Conectar Igualdad, "la Cristina") en una
 **consola para la tele de tubo**: la prendés y aparece un menú grande para ver
@@ -67,7 +69,7 @@ Mirá la etiqueta de abajo o, al prenderla, entrá al BIOS para ver el procesado
 1. **¿32 o 64 bits?** Atom N450/N455/N570 y Celeron → **64 bits (amd64)**.
    Si es un Atom N270/N280 → 32 bits (i386). Ante la duda, usá i386, que anda en todas.
 2. Bajá el instalador "netinst" de **Debian 12** (ojo: la página principal de debian.org te
-   ofrece la 13; TeleVieja está hecha y probada para la 12, que tiene soporte hasta 2028):
+   ofrece la 13; Frecuencia 99 está hecha y probada para la 12, que tiene soporte hasta 2028):
    - 64 bits: <https://cdimage.debian.org/cdimage/archive/12.15.0/amd64/iso-cd/debian-12.15.0-amd64-netinst.iso>
    - 32 bits: <https://cdimage.debian.org/cdimage/archive/12.15.0/i386/iso-cd/debian-12.15.0-i386-netinst.iso>
    (si hay una 12.x más nueva en <https://cdimage.debian.org/cdimage/archive/>, sirve igual)
@@ -81,10 +83,10 @@ Mirá la etiqueta de abajo o, al prenderla, entrá al BIOS para ver el procesado
    - Usuario: el nombre que quieras (por ejemplo `tele`).
    - Particionado: "Guiado - utilizar todo el disco".
    - En **"Selección de programas"**, destildá TODO menos
-     **"utilidades estándar del sistema"**. (Nada de escritorio: TeleVieja ya trae su menú.)
+     **"utilidades estándar del sistema"**. (Nada de escritorio: Frecuencia 99 ya trae su menú.)
 6. Reiniciá, sacá el pendrive y entrá con tu usuario y contraseña.
 
-## 3. Instalar TeleVieja
+## 3. Instalar Frecuencia 99
 
 En la netbook, con internet:
 
@@ -106,7 +108,7 @@ Si hay algo conectado en la salida VGA, la imagen sale por la tele; si no, por l
 
 ### Pasar el disco a una netbook más potente
 
-TeleVieja está pensada para que, si conseguís una netbook mejor (por ejemplo una Juana
+Frecuencia 99 está pensada para que, si conseguís una netbook mejor (por ejemplo una Juana
 Manso), le pases el disco y siga andando. Ya viene preparada para eso:
 
 - Trae el **firmware** de las placas WiFi, de sonido y de video más comunes (Intel, Realtek,
@@ -136,7 +138,7 @@ En la netbook nueva:
 
 > Ojo: muchas netbooks nuevas traen la memoria **soldada** (eMMC) en lugar de un disco que se
 > pueda sacar. Antes de comprar, fijate que tenga lugar para un disco SATA de 2,5" o M.2.
-> Si no tiene, instalá TeleVieja en ella con `instalar.sh` y enchufale tu disco externo USB
+> Si no tiene, instalá Frecuencia 99 en ella con `instalar.sh` y enchufale tu disco externo USB
 > con tus cosas: queda igual.
 
 **Mejora barata:** si le ponés un disco **SSD** en vez del disco común, la netbook prende y
@@ -145,7 +147,7 @@ procesador), pero se nota un montón en el uso.
 
 ## 4. Cargar tus cosas
 
-Todo va en la carpeta **`TeleVieja`** de la netbook:
+Todo va en la carpeta **`TeleVieja`** de la netbook (la carpeta conserva el nombre de antes del cambio a Frecuencia 99, así no se mueve nada):
 
 ```
 TeleVieja/
@@ -177,7 +179,7 @@ en el menú elegí **Copiar desde pendrive**. Copia solo lo nuevo; no borra nada
 ### Disco externo USB (para tener mucho más)
 
 Si el disco de la netbook te queda chico, enchufá un **disco externo USB** (o un pendrive):
-TeleVieja lo monta solo y su contenido aparece en el menú, **sin copiar nada**.
+Frecuencia 99 lo monta solo y su contenido aparece en el menú, **sin copiar nada**.
 
 - Armá en el disco la misma carpeta `TeleVieja` (con `Videos`, `Juegos`, `Historietas`, ...).
 - En **Videos**, **Historietas** y **Radio** aparece como **"Disco: NOMBRE"** arriba de todo.
@@ -196,7 +198,7 @@ descomprimilos primero.
 
 ### Tus emuladores de Windows
 
-No hacen falta: TeleVieja trae **RetroArch**, que emula todas esas consolas.
+No hacen falta: Frecuencia 99 trae **RetroArch**, que emula todas esas consolas.
 Usá solamente las ROMs que venían adentro:
 
 | Lo que tenés | Dónde va | ¿Anda en la netbook? |
@@ -242,7 +244,7 @@ juego no se ponga lento). No está probado en la netbook todavía: probalo con t
 ### Nintendo 64 (experimental)
 
 La N64 pide mucho más que la PS1: necesita una placa de video con 3D moderno (OpenGL 3.3).
-Por eso **aparece en Juegos solo si la netbook puede**. TeleVieja se fija sola qué placa tiene:
+Por eso **aparece en Juegos solo si la netbook puede**. Frecuencia 99 se fija sola qué placa tiene:
 
 | Netbook | N64 |
 |---|---|
@@ -271,7 +273,7 @@ Cadillacs and Dinosaurs, Metal Slug, Tortugas Ninja... Usa **FBNeo**, el mismo e
   nombre completo ("Street Fighter Alpha: Warriors' Dreams").
 - Tienen que ser *romsets* para FBNeo. Los de otras versiones de MAME a veces no andan.
 - Algunas placas necesitan además su BIOS en la misma carpeta (por ejemplo `neogeo.zip` o `pgm.zip`).
-  TeleVieja no las muestra en la lista porque no son juegos.
+  Frecuencia 99 no las muestra en la lista porque no son juegos.
 - En un Atom andan bien casi todos los de los 80 y 90 (Capcom CPS1/CPS2, Neo Geo, Konami).
   Los más modernos (CPS3, Cave) pueden ir lentos.
 
@@ -289,7 +291,7 @@ con **Wine**, un programa que hace andar juegos de Windows en Linux.
   ```
   Lo más fácil: instalalo en una compu con Windows y copiá la carpeta que quedó
   (por ejemplo `C:\Program Files\Sonic R`).
-- TeleVieja busca solo el `.exe` del juego (saltea instaladores y desinstaladores). Si hay
+- Frecuencia 99 busca solo el `.exe` del juego (saltea instaladores y desinstaladores). Si hay
   varios y no sabe cuál, te avisa: creá en la carpeta un archivo **`jugar.txt`** con el nombre
   del que abre el juego (por ejemplo `SONICR.EXE`).
 - La primera vez tarda un par de minutos en **preparar Wine**. Después abre enseguida.
@@ -325,7 +327,7 @@ Al terminar, **lo acomoda solo**:
 | Packs comprimidos (.zip/.rar/.7z con muchas cosas) | se descomprimen y se reparten |
 | Juegos de PC (carpetas con .exe) y lo que no reconoce | `Descargas/`, para acomodarlo a mano |
 
-Límites (los pone Google, no TeleVieja):
+Límites (los pone Google, no Frecuencia 99):
 - El link tiene que estar compartido como **"Cualquier persona con el enlace"**.
 - Sin una cuenta, Google muestra **como mucho 50 archivos por carpeta**. Si una carpeta tiene
   más, te avisa: pegá el link de cada subcarpeta para bajar el resto.
@@ -386,7 +388,7 @@ En Windows se puede hacer lo mismo con **HandBrake**: preset *"Fast 480p30"* y e
 | X | F2 o Insert | En una lista de juegos: agregar o sacar de **Favoritos** ★ |
 | — | una letra | Ir a los juegos que empiezan con esa letra |
 
-Cada vez que enchufás un **modelo nuevo** de joystick, TeleVieja te pide que **apretes cada botón**
+Cada vez que enchufás un **modelo nuevo** de joystick, Frecuencia 99 te pide que **apretes cada botón**
 para aprenderlo (una sola vez por modelo; el celu no hace falta configurarlo). Se puede repetir en *Opciones → Configurar joystick*.
 
 ### Control remoto
@@ -418,7 +420,7 @@ un control con cruz, OK, volver, inicio, pausa, volumen y botones para los juego
 
 **Tenerlo como una app:** con la página abierta en Chrome, tocá los 3 puntitos →
 **"Agregar a la pantalla principal"** (en iPhone: Compartir → "Agregar a inicio"). Queda un
-ícono de una tele retro llamado "TeleVieja". Si reiniciás el router y deja de andar, volvé a
+ícono con el logo de Frecuencia 99 (la tele con el 99). Si reiniciás el router y deja de andar, volvé a
 escanear el QR (a veces la netbook cambia de dirección).
 
 **El celular como joystick.** En esa misma página tocá **"🎮 Usar el celu como joystick"**,
@@ -486,9 +488,9 @@ la configuración vieja queda copiada en `/etc/network/interfaces.televieja-ante
 del celu por **cable USB** (en Android: Ajustes → Conexiones → Zona Wi-Fi y anclaje → **Anclaje
 USB**). La netbook lo toma como un cable de red y se conecta sola, sin configurar nada.
 
-## Actualizar TeleVieja (con un botón)
+## Actualizar Frecuencia 99 (con un botón)
 
-*Opciones → **Actualizar TeleVieja*** (o el botón **"Actualizar TeleVieja"** al final de la página
+*Opciones → **Actualizar Frecuencia 99*** (o el botón **"Actualizar Frecuencia 99"** al final de la página
 del celu). La tele pregunta si buscar la última versión; al confirmar, la netbook la baja de
 GitHub, la instala y reinicia el menú sola. Tarda unos minutos y necesita internet. Si ya tenés
 la última versión, te lo dice. El registro queda en `/var/log/televieja-actualizar.log`.
@@ -557,9 +559,9 @@ Para volver al menú desde la terminal: `startx`.
 | El joystick no responde en los juegos | *Opciones → Configurar joystick* |
 | Un video anda trabado | Pasalo a 480p (ver arriba) |
 | El joystick del celu dice "No se pudo crear el joystick" | Reiniciá la netbook (carga el módulo `uinput`). Si sigue, volvé a correr `sudo ./instalar.sh` |
-| Las descargas fallan después de que se agotó la batería | La netbook perdió la fecha y sin fecha no anda internet "seguro". TeleVieja se pone en hora sola al arrancar (y al fallar una descarga por eso). A mano: `sudo /opt/televieja/bin/hora.sh` |
+| Las descargas fallan después de que se agotó la batería | La netbook perdió la fecha y sin fecha no anda internet "seguro". Frecuencia 99 se pone en hora sola al arrancar (y al fallar una descarga por eso). A mano: `sudo /opt/televieja/bin/hora.sh` |
 | Se cuelga (hay que sacarle la batería) | Actualizá y reiniciá: en las Intel viejas el video usa un modo más estable. Si sigue, fijate la temperatura: `cat /sys/class/thermal/thermal_zone*/temp` (en milésimas de grado; más de 90000 es mucho) y limpiale el ventilador |
-| Se suspende sola (pantalla negra, lucecita titilando) | Actualizá: TeleVieja ya no se suspende al cerrar la tapa ni con la tecla de "dormir". Para despertarla ahora, apretá el botón de encendido un instante |
+| Se suspende sola (pantalla negra, lucecita titilando) | Actualizá: Frecuencia 99 ya no se suspende al cerrar la tapa ni con la tecla de "dormir". Para despertarla ahora, apretá el botón de encendido un instante |
 | El WiFi se corta cada tanto | Volvé a correr `sudo ./instalar.sh` (apaga el ahorro de energía del WiFi) y reiniciá |
 | El celu no abre la página del control | Que esté en el mismo WiFi que la netbook (no en datos móviles) y que la dirección sea la que muestra *Opciones → Control desde el celular* |
 | Un juego no abre | Revisá que la ROM sea de esa consola. Los errores quedan en `~/.cache/televieja/juego.log` |

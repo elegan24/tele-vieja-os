@@ -60,6 +60,17 @@ class _Manejador(BaseHTTPRequestHandler):
             self._pagina(PAGINA_JOYSTICK)
         elif self.path == "/ws":
             self._websocket()
+        elif self.path == "/logo.png":
+            datos = ICONOS.get("logo")
+            if not datos:
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(datos)))
+            self.send_header("Cache-Control", "max-age=86400")
+            self.end_headers()
+            self.wfile.write(datos)
         elif self.path == "/manifest.json":
             self._json(200, MANIFIESTO)
         elif re.match(r"^/icono-(180|192|512)\.png$", self.path):
@@ -222,8 +233,8 @@ class _Manejador(BaseHTTPRequestHandler):
 
 
 MANIFIESTO = {
-    "name": "TeleVieja", "short_name": "TeleVieja",
-    "description": "Control remoto de la TeleVieja",
+    "name": "Frecuencia 99", "short_name": "Frecuencia 99",
+    "description": "Control remoto de Frecuencia 99",
     "start_url": "/", "scope": "/", "display": "standalone", "orientation": "any",
     "background_color": "#0c1240", "theme_color": "#0c1240",
     "icons": [
@@ -234,27 +245,23 @@ MANIFIESTO = {
 ICONOS = {}
 
 
+def _ruta_logo():
+    import os
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "sistema", "logo-sticker.png")
+
+
 def dibujar_icono(lado):
-    """Una tele de tubo con antena y barras de color, sobre el azul de TeleVieja."""
+    """El logo de Frecuencia 99 (el sticker de la tele con el 99) sobre azul oscuro."""
     s = pygame.Surface((lado, lado))
     s.fill((12, 18, 64))
-    u = lado / 100.0  # todo en "porcentaje" del ícono
-
-    def r(x, y, w, h):
-        return pygame.Rect(int(x * u), int(y * u), max(1, int(w * u)), max(1, int(h * u)))
-
-    pygame.draw.line(s, (236, 236, 236), (int(50 * u), int(30 * u)), (int(34 * u), int(14 * u)), max(2, int(3 * u)))
-    pygame.draw.line(s, (236, 236, 236), (int(50 * u), int(30 * u)), (int(66 * u), int(14 * u)), max(2, int(3 * u)))
-    pygame.draw.rect(s, (255, 212, 60), r(16, 28, 68, 54), border_radius=int(10 * u))
-    pantalla = r(23, 35, 44, 40)
-    barras = ((235, 235, 235), (235, 235, 16), (16, 235, 235), (16, 235, 16),
-              (235, 16, 235), (235, 16, 16), (16, 16, 235))
-    ancho = pantalla.width / len(barras)
-    for i, color in enumerate(barras):
-        pygame.draw.rect(s, color, (pantalla.x + int(i * ancho), pantalla.y, int(ancho) + 1, pantalla.height))
-    pygame.draw.rect(s, (10, 14, 40), pantalla, max(2, int(2 * u)), border_radius=int(5 * u))
-    for y in (42, 56):
-        pygame.draw.circle(s, (10, 14, 40), (int(75 * u), int(y * u)), max(2, int(4 * u)))
+    try:
+        logo = pygame.image.load(_ruta_logo())
+        tam = int(lado * 0.86)
+        logo = pygame.transform.smoothscale(logo, (tam, tam))
+        s.blit(logo, ((lado - tam) // 2, (lado - tam) // 2))
+    except (pygame.error, FileNotFoundError):
+        pass
     return s
 
 
@@ -272,6 +279,11 @@ def _preparar_iconos():
             os.remove(ruta)
         except (pygame.error, OSError):
             pass
+    try:
+        with open(_ruta_logo(), "rb") as f:
+            ICONOS["logo"] = f.read()
+    except OSError:
+        pass
 
 
 def iniciar(puerto):
@@ -296,8 +308,8 @@ PAGINA = """<!doctype html>
 <link rel="icon" type="image/png" href="/icono-192.png">
 <link rel="apple-touch-icon" href="/icono-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="TeleVieja">
-<title>TeleVieja</title>
+<meta name="apple-mobile-web-app-title" content="Frecuencia 99">
+<title>Frecuencia 99</title>
 <style>
   :root { --fondo:#0c1240; --boton:#1f2f7a; --borde:#3a4ca8; --amarillo:#ffd43c; --texto:#ececec; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -306,7 +318,7 @@ PAGINA = """<!doctype html>
     -webkit-user-select:none; touch-action:manipulation; }
   main { max-width:420px; margin:0 auto; padding:16px 16px 32px; }
   h1 { margin:4px 0 14px; font-size:22px; color:var(--amarillo); display:flex; gap:10px; align-items:center; }
-  .franjas { display:grid; gap:3px; }
+  .logo { width:44px; height:44px; }
   .franjas i { display:block; width:24px; height:4px; }
   h2 { font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:#97a3d6; margin:22px 0 8px; }
   button { font:inherit; color:var(--texto); background:var(--boton); border:2px solid var(--borde);
@@ -339,9 +351,7 @@ PAGINA = """<!doctype html>
 </head>
 <body>
 <main>
-  <h1><span class="franjas"><i style="background:#e6463c"></i><i style="background:#f58c28"></i>
-    <i style="background:#ffd43c"></i><i style="background:#5ac86e"></i><i style="background:#5aaaf0"></i></span>
-    TeleVieja</h1>
+  <h1><img class="logo" src="/logo.png" alt="">Frecuencia 99</h1>
 
   <a class="joystick" href="/joystick">🎮 Usar el celu como joystick</a>
 
@@ -395,7 +405,7 @@ PAGINA = """<!doctype html>
 
   <h2>Mantenimiento</h2>
   <div class="fila" style="--n:1">
-    <button data-b="actualizar">⬇ Actualizar TeleVieja</button>
+    <button data-b="actualizar">⬇ Actualizar Frecuencia 99</button>
   </div>
   <p class="nota">La tele te pregunta si querés buscar la última versión; confirmás con el joystick o el control.</p>
 
@@ -508,9 +518,9 @@ PAGINA_JOYSTICK = """<!doctype html>
 <link rel="icon" type="image/png" href="/icono-192.png">
 <link rel="apple-touch-icon" href="/icono-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="TeleVieja">
+<meta name="apple-mobile-web-app-title" content="Frecuencia 99">
 <meta name="mobile-web-app-capable" content="yes">
-<title>TeleVieja · Joystick</title>
+<title>Frecuencia 99 · Joystick</title>
 <style>
   :root { --fondo:#0c1240; --boton:#1f2f7a; --borde:#3a4ca8; --amarillo:#ffd43c; --texto:#ececec;
     --rojo:#e6463c; --azul:#5aaaf0; --verde:#5ac86e; }

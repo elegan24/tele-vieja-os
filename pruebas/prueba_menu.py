@@ -242,7 +242,10 @@ def probar_controles(app, paso, foto):
     from televieja import remoto
     assert app.servidor_celular, "no arrancó el servidor del celular"
     pagina = urllib.request.urlopen("http://127.0.0.1:18080/", timeout=5).read().decode()
-    assert "TeleVieja" in pagina and 'data-b="inicio"' in pagina
+    assert "Frecuencia 99" in pagina and 'data-b="inicio"' in pagina
+    assert 'src="/logo.png"' in pagina
+    logo = urllib.request.urlopen("http://127.0.0.1:18080/logo.png", timeout=5).read()
+    assert logo[:8] == b"\x89PNG\r\n\x1a\n" and len(logo) > 1000
     # botón inválido -> 404
     try:
         urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:18080/b/rm", method="POST"))
@@ -402,7 +405,7 @@ def probar_mega(app, paso, foto):
     paso("b", "b")
     # --- el control del celu como app ---
     manifiesto = json.loads(urllib.request.urlopen("http://127.0.0.1:18080/manifest.json").read())
-    assert manifiesto["name"] == "TeleVieja" and manifiesto["display"] == "standalone"
+    assert manifiesto["name"] == "Frecuencia 99" and manifiesto["display"] == "standalone"
     icono = urllib.request.urlopen("http://127.0.0.1:18080/icono-512.png").read()
     assert icono[:8] == b"\x89PNG\r\n\x1a\n", icono[:8]
     with open(os.path.join(SALIDA, "22-icono-celu.png"), "wb") as f:

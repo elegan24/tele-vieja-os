@@ -35,7 +35,7 @@ EXT_IMAGEN = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp")
 EXT_HISTORIETA = (".cbz", ".cbr", ".cb7", ".zip", ".rar", ".7z", ".pdf")
 
 OPCIONES_POR_DEFECTO = {
-    "NOMBRE_CANAL": "TELE VIEJA",
+    "NOMBRE_CANAL": "FRECUENCIA 99",
     "CANAL_RELOJ": "si",
     "CANAL_EMPEZADO": "si",
     "TANDAS_POR_CORTE": "2",

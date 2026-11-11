@@ -16,7 +16,7 @@ if [ -d "$FUENTE/.git" ]; then
     git -C "$FUENTE" reset --quiet --hard origin/main
 else
     rm -rf "$FUENTE"
-    git clone --quiet --depth 1 "$REPO" "$FUENTE" || { echo "No pude bajar TeleVieja (¿hay internet?)."; exit 1; }
+    git clone --quiet --depth 1 "$REPO" "$FUENTE" || { echo "No pude bajar Frecuencia 99 (¿hay internet?)."; exit 1; }
 fi
 
 nueva=$(git -C "$FUENTE" rev-parse --short HEAD)

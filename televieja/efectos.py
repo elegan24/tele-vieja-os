@@ -54,6 +54,18 @@ def cuadro_apagado(imagen, t):
     return sup
 
 
+def placa_canal(fuentes, nombre):
+    """La placa de presentación: el logo grande y el nombre, sobre negro."""
+    sup = pygame.Surface((ANCHO, ALTO))
+    sup.fill((0, 0, 0))
+    dibujo = ui.logo(230, ui.AMARILLO, (14, 14, 18), ui.AMARILLO)
+    if dibujo:
+        sup.blit(dibujo, dibujo.get_rect(center=(ANCHO // 2, ALTO // 2 - 40)))
+    ui.escribir(sup, fuentes.titulo, nombre, ui.BLANCO, (ANCHO // 2, ALTO // 2 + 110), "midtop",
+                sombra=False)
+    return sup
+
+
 def animar(app, cuadro, imagen, segundos):
     """Muestra la animación en la pantalla (bloquea un ratito)."""
     inicio = time.monotonic()
@@ -105,15 +117,27 @@ class LogoRebotando:
     """El logo que rebota por la pantalla y cambia de color en cada choque."""
 
     def __init__(self, fuente, texto):
-        self.fuente = fuente
+        self.fuente = pygame.font.Font(None, 30)
         self.texto = texto
         self.x, self.y = 80.0, 120.0
         self.vx, self.vy = 70.0, 52.0      # pixeles por segundo
         self.color = 0
         self.esquinas = 0
 
+    def _dibujo(self, color):
+        """El logo con el nombre abajo, del color que toca."""
+        texto = self.fuente.render(self.texto, True, color)
+        logo = ui.logo(110, color, (12, 12, 12), color)
+        if logo is None:
+            return texto
+        sup = pygame.Surface((max(logo.get_width(), texto.get_width()),
+                              logo.get_height() + 6 + texto.get_height()), pygame.SRCALPHA)
+        sup.blit(logo, ((sup.get_width() - logo.get_width()) // 2, 0))
+        sup.blit(texto, ((sup.get_width() - texto.get_width()) // 2, logo.get_height() + 6))
+        return sup
+
     def mover(self, dt):
-        img = self.fuente.render(self.texto, True, (255, 255, 255))
+        img = self._dibujo((255, 255, 255))
         w, h = img.get_size()
         self.x += self.vx * dt
         self.y += self.vy * dt
@@ -136,8 +160,7 @@ class LogoRebotando:
         # colores vivos de la carta de ajuste (sin el azul, que sobre negro casi no se ve)
         colores = temas.BARRAS_CARTA[:-1]
         color = colores[self.color % len(colores)]
-        img = self.fuente.render(self.texto, True, color)
-        sup.blit(img, (int(self.x), int(self.y)))
+        sup.blit(self._dibujo(color), (int(self.x), int(self.y)))
         if self.esquinas:
             ui.escribir(sup, pygame.font.Font(None, 22), "esquinas: %d" % self.esquinas,
                         (90, 90, 90), (ANCHO - 10, ALTO - 8), "bottomright", sombra=False)

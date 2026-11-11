@@ -71,7 +71,7 @@ def armar_canal(opciones):
 
 
 def orden_canal(opciones, lista, color="&HFFFFFF&"):
-    nombre = opciones.get("NOMBRE_CANAL", "TELE VIEJA").replace(",", " ")
+    nombre = opciones.get("NOMBRE_CANAL", "FRECUENCIA 99").replace(",", " ")
     opts = "canal-nombre=%s,canal-reloj=%s,canal-empezado=%s,canal-color=%s" % (
         nombre,
         "si" if config.opcion_si(opciones, "CANAL_RELOJ") else "no",

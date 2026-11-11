@@ -136,7 +136,7 @@ class App:
         if pygame.display.get_init():
             pygame.display.quit()
         pygame.display.init()
-        pygame.display.set_caption("TeleVieja")
+        pygame.display.set_caption("Frecuencia 99")
         if self.ventana:
             self.pantalla = pygame.display.set_mode((ANCHO, ALTO))
         else:
@@ -220,16 +220,21 @@ class App:
         sup.blit(self.fondo, (0, 0))
         f = self.fuentes
         # franjas de colores, bien de los 80
-        alto_franja = 35 // len(ui.FRANJAS)
-        for i, color in enumerate(ui.FRANJAS):
-            pygame.draw.rect(sup, color, (MARGEN_X, MARGEN_Y + 4 + i * alto_franja, 26,
-                                          max(2, alto_franja - 2)))
+        dibujo_logo = ui.logo(38, ui.AMARILLO, ui.CAJA, ui.AMARILLO) if p is self.pila[0] else None
+        if dibujo_logo:  # en el menú principal, el logo de Frecuencia 99
+            sup.blit(dibujo_logo, (MARGEN_X - 4, MARGEN_Y + 2))
+        else:
+            alto_franja = 35 // len(ui.FRANJAS)
+            for i, color in enumerate(ui.FRANJAS):
+                pygame.draw.rect(sup, color, (MARGEN_X, MARGEN_Y + 4 + i * alto_franja, 26,
+                                              max(2, alto_franja - 2)))
         reloj = ui.escribir(sup, f.item, time.strftime("%H:%M"), ui.BLANCO,
                             (ANCHO - MARGEN_X, MARGEN_Y + 4), "topright")
         izquierda_reloj = self._dibujar_bateria(sup, reloj.left - 12, reloj.centery)
         izquierda_reloj = self._dibujar_red(sup, izquierda_reloj - 12, reloj.centery)
         titulo = ui.recortar(f.titulo, p.titulo or "", izquierda_reloj - MARGEN_X - 50, f.puntos)
-        ui.escribir(sup, f.titulo, titulo, ui.AMARILLO, (MARGEN_X + 38, MARGEN_Y))
+        x_titulo = MARGEN_X + (dibujo_logo.get_width() + 6 if dibujo_logo else 38)
+        ui.escribir(sup, f.titulo, titulo, ui.AMARILLO, (x_titulo, MARGEN_Y))
         pygame.draw.line(sup, ui.GRIS_OSCURO, (MARGEN_X, MARGEN_Y + 48), (ANCHO - MARGEN_X, MARGEN_Y + 48), 2)
         pie = ALTO - MARGEN_Y - 22
         ui.escribir(sup, f.chica, ui.recortar(f.chica, p.ayuda, ANCHO - 2 * MARGEN_X - 90, f.puntos),
@@ -271,7 +276,7 @@ class App:
             return
         if isinstance(self.actual, (Protector, Lector, Calibrar, Espera)):
             return  # leyendo una historieta, configurando o esperando algo: no molestar
-        self.poner(Protector(self.opciones.get("NOMBRE_CANAL", "TELE VIEJA")))
+        self.poner(Protector(self.opciones.get("NOMBRE_CANAL", "FRECUENCIA 99")))
 
     def _dibujar_bateria(self, sup, derecha, centro_y):
         """Pila con el nivel y el porcentaje, a la izquierda de la hora. Devuelve dónde termina."""
@@ -588,8 +593,14 @@ class App:
         reloj = pygame.time.Clock()
         if config.opcion_si(self.opciones, "EFECTO_ENCENDIDO"):
             from . import efectos
-            self._dibujar(self.actual, self.lienzo)
-            efectos.animar(self, efectos.cuadro_encendido, self.lienzo.copy(), 0.9)
+            # se prende la tele con la placa del canal, como cuando arrancaba la transmisión
+            placa = efectos.placa_canal(self.fuentes, self.opciones.get("NOMBRE_CANAL", "FRECUENCIA 99"))
+            efectos.animar(self, efectos.cuadro_encendido, placa, 0.9)
+            fin = time.monotonic() + 1.3
+            while time.monotonic() < fin:
+                self.mostrar(placa)
+                pygame.event.pump()
+                time.sleep(0.05)
             self.sucio = True
         if self.opciones.get("ARRANCAR_EN", "menu").lower() == "canal":
             self.canal()
@@ -675,13 +686,13 @@ def menu_principal(app):
         Item("Control desde el celular", ir(ControlCelular), icono="celular"),
         Item("Descargas", ir(Descargas), icono="bajar"),
         Item("Cambiar pantalla (tele / netbook)", lambda app: app.cambiar_pantalla(), icono="tele"),
-        Item("Actualizar TeleVieja", lambda app: app.poner(Confirmar(
+        Item("Actualizar Frecuencia 99", lambda app: app.poner(Confirmar(
             "¿Buscar y instalar la última versión?", actualizar)), icono="bajar"),
         Item("Reiniciar", lambda app: app.poner(Confirmar("¿Reiniciar?", lambda a: a.sistema("reboot"))),
              icono="flecha"),
         Item("Salir a la terminal", lambda app: app.salir_a_terminal(), icono="engranaje"),
     ])
-    nombre = app.opciones.get("NOMBRE_CANAL", "TELE VIEJA")
+    nombre = app.opciones.get("NOMBRE_CANAL", "FRECUENCIA 99")
     return Lista(nombre, [
         Item("Canal Retro", lambda app: app.canal(), icono="tele"),
         Item("Videos", ir(lambda: Explorador("video", "Videos", config.EXT_VIDEO)), icono="play"),
@@ -691,7 +702,7 @@ def menu_principal(app):
         Item("Radio", ir(lambda: Explorador("radio", "Radio", config.EXT_AUDIO)), icono="nota"),
         Item("Copiar desde pendrive", copiar_pendrive, icono="usb"),
         Item("Opciones", lambda app: app.poner(opciones), icono="engranaje"),
-        Item("Apagar", lambda app: app.poner(Confirmar("¿Apagar la tele vieja?",
+        Item("Apagar", lambda app: app.poner(Confirmar("¿Apagar Frecuencia 99?",
                                                        lambda a: a.sistema("poweroff"))),
              icono="apagar"),
     ], ayuda="A: elegir")

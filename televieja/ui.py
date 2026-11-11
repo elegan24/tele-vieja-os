@@ -176,3 +176,41 @@ def icono(sup, nombre, x, y, color):
     elif nombre == "flecha":
         pygame.draw.polygon(sup, color, [(x + 2, y + 11), (x + 12, y + 2), (x + 12, y + 20)])
         pygame.draw.rect(sup, color, (x + 11, y + 8, 10, 6))
+
+
+# --- el logo (Frecuencia 99) -------------------------------------------------
+_LOGO = {}
+
+
+def logo(alto, marco, pantalla, numeros):
+    """El logo (una tele con un 99) pintado con los colores que se pidan.
+
+    sistema/logo-capas.png tiene cada parte de un color puro: rojo el marco,
+    verde la pantalla y azul los números; acá se reemplazan por los pedidos.
+    """
+    clave = (alto, tuple(marco), tuple(pantalla), tuple(numeros))
+    if clave in _LOGO:
+        return _LOGO[clave]
+    if "base" not in _LOGO:
+        ruta = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "sistema", "logo-capas.png")
+        try:
+            _LOGO["base"] = pygame.image.load(ruta)
+        except (pygame.error, FileNotFoundError):
+            _LOGO["base"] = None
+    base = _LOGO["base"]
+    if base is None:
+        return None
+    # Cada capa se pinta por separado (si se reemplazaran de a una, un color nuevo
+    # parecido a otra capa se pisaría con el siguiente reemplazo).
+    sup = pygame.Surface(base.get_size(), pygame.SRCALPHA)
+    for de, a in (((255, 0, 0), marco), ((0, 255, 0), pantalla), ((0, 0, 255), numeros)):
+        capa = pygame.mask.from_threshold(base, de + (255,), (10, 10, 10, 255))
+        sup.blit(capa.to_surface(setcolor=tuple(a)[:3] + (255,), unsetcolor=(0, 0, 0, 0)), (0, 0))
+    ancho = max(1, base.get_width() * alto // base.get_height())
+    sup = pygame.transform.smoothscale(sup, (ancho, alto))
+    if len(_LOGO) > 40:
+        _LOGO.clear()
+        _LOGO["base"] = base
+    _LOGO[clave] = sup
+    return sup

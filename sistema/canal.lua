@@ -1,7 +1,7 @@
 -- Canal Retro: logo del canal y hora en la esquina, como la tele de antes.
 -- Lo carga TeleVieja solo cuando se mira el canal.
 
-local opts = { nombre = "TELE VIEJA", reloj = "si", empezado = "si", color = "&HFFFFFF&" }
+local opts = { nombre = "FRECUENCIA 99", reloj = "si", empezado = "si", color = "&HFFFFFF&" }
 require("mp.options").read_options(opts, "canal")
 
 local logo = mp.create_osd_overlay("ass-events")

@@ -167,7 +167,7 @@ instalar_archivo() {  # instalar_archivo ORIGEN DESTINO [no-pisar]
 if [ ! -f "$CASA/.config/televieja/opciones.conf" ]; then
     cat > "$CASA/.config/televieja/opciones.conf" <<'EOF'
 # Opciones de TeleVieja OS. Después de cambiar algo, reiniciá.
-NOMBRE_CANAL=TELE VIEJA
+NOMBRE_CANAL=FRECUENCIA 99
 # Mostrar la hora en el Canal Retro (si/no)
 CANAL_RELOJ=si
 # Al entrar al canal, agarrar el programa empezado (si/no)
@@ -201,6 +201,8 @@ PROTECTOR_MINUTOS=5
 EOF
     chown "$USUARIO:$USUARIO" "$CASA/.config/televieja/opciones.conf"
 fi
+# Nombre nuevo: si tenía el nombre de antes (sin cambiar), pasa a Frecuencia 99
+sed -i 's/^NOMBRE_CANAL=TELE VIEJA$/NOMBRE_CANAL=FRECUENCIA 99/' "$CASA/.config/televieja/opciones.conf"
 sed -e "s#@RAIZ@#$R#g" -e "s#@CONFIG@#$CASA/.config/televieja#g" \
     "$APP/sistema/retroarch.cfg" > "$CASA/.config/televieja/retroarch.cfg"
 chown "$USUARIO:$USUARIO" "$CASA/.config/televieja/retroarch.cfg"
