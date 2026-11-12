@@ -56,6 +56,9 @@ def preparar_contenido():
         for cap in (1, 2, 10):
             tocar(os.path.join(R, "Videos", nombre, "Capitulo %d.mp4" % cap))
     tocar(os.path.join(R, "Videos", "Volver al futuro.avi"))
+    # carpeta que quedó suelta al copiar un disco (fuera de Videos) y otra sin videos
+    tocar(os.path.join(R, "Dale Play", "Temporada 1", "Capitulo 1.mkv"))
+    tocar(os.path.join(R, "Papeles", "nota.txt"))
     tocar(os.path.join(R, "Canal", "Programas", "El Zorro 01.mp4"))
     tocar(os.path.join(R, "Canal", "Tandas", "Publicidad Coca 1991.mp4"))
     for n in ["Super Mario Bros. (World)", "Contra (U) [!]", "Duck Hunt (World)",
@@ -541,6 +544,7 @@ game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 c
     foto("02-videos")
     textos = [it.texto for it in app.actual.items]
     assert "Disco: 1234-ABCD" in textos and "Disco: DISCO2" in textos, textos
+    assert "Dale Play" in textos and "Papeles" not in textos and "Juegos" not in textos, textos
     app.actual.sel = textos.index("Disco: 1234-ABCD")
     paso("a")
     assert app.actual.titulo == "1234-ABCD", app.actual.titulo

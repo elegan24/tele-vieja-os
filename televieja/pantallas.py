@@ -379,6 +379,13 @@ class Explorador(Lista):
                 self.items.append(Item("Disco: " + nombre,
                                        lambda app, c=c, n=nombre: self.entrar(app, c, n),
                                        icono="disco"))
+        if not self.historial and self.tipo == "video":
+            # Carpetas con videos que quedaron sueltas en TeleVieja (fuera de Videos)
+            for nombre, c, de_disco in config.carpetas_sueltas(self.ext):
+                if de_disco:
+                    nombre += " (disco)"
+                self.items.append(Item(nombre, lambda app, c=c, n=nombre: self.entrar(app, c, n),
+                                       icono="carpeta"))
         for c in carpetas:
             nombre = os.path.basename(c)
             if self.tipo == "historieta" and historietas.es_carpeta_historieta(c):

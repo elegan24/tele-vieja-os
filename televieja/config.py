@@ -252,6 +252,43 @@ def raices():
     return [RAIZ] + [d["raiz"] for d in discos_externos() if d["raiz"]]
 
 
+# Las carpetas que el sistema usa adentro de TeleVieja (todo lo demás está "suelto").
+CARPETAS_PROPIAS = {"videos", "canal", "juegos", "historietas", "radio", "partidas",
+                    "bios", "descargas"}
+
+
+def tiene_archivos(carpeta, extensiones, limite=4000):
+    """¿Hay algún archivo con esas extensiones adentro (en cualquier subcarpeta)?"""
+    vistos = 0
+    for _, _, archivos in os.walk(carpeta):
+        for a in archivos:
+            if a.lower().endswith(extensiones):
+                return True
+        vistos += len(archivos)
+        if vistos > limite:   # carpeta enorme sin videos al principio: no seguimos buscando
+            return False
+    return False
+
+
+def carpetas_sueltas(extensiones):
+    """Carpetas puestas directo en TeleVieja (fuera de Videos, Juegos...) que tienen
+    archivos de ese tipo. Pasa al copiar un disco que no tenía todo en Videos.
+    Devuelve [(nombre, ruta, es_de_disco)]."""
+    salida = []
+    for r in raices():
+        try:
+            nombres = sorted(os.listdir(r), key=clave_natural)
+        except OSError:
+            continue
+        for n in nombres:
+            ruta = os.path.join(r, n)
+            if (n.startswith(".") or n.lower() in CARPETAS_PROPIAS
+                    or not os.path.isdir(ruta) or not tiene_archivos(ruta, extensiones)):
+                continue
+            salida.append((n, ruta, r != RAIZ))
+    return salida
+
+
 def listar_en_todas(partes, extensiones):
     """Busca archivos en la misma subcarpeta de todas las raíces (netbook + discos)."""
     archivos = []
