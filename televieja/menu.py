@@ -2,6 +2,7 @@
 import array
 import math
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -755,13 +756,75 @@ def actualizar(app):
     app.poner(espera)
 
 
+def _gb(b):
+    if b < 1073741824:
+        return "%d MB" % (b // 1048576)
+    return ("%.1f GB" % (b / 1073741824)).replace(".", ",")
+
+
+def _tiempo(seg):
+    seg = int(seg)
+    if seg >= 3600:
+        return "%d h %d min" % (seg // 3600, seg % 3600 // 60)
+    if seg >= 60:
+        return "%d min" % (seg // 60)
+    return "menos de 1 min"
+
+
+class ProgresoCopia:
+    """Lee lo que va diciendo importar-usb.sh y arma el renglón de cómo va la copia."""
+    LINEA = re.compile(r"^\s*([\d,]+)\s+(\d+)%\s+([\d.]+)([kMG]?B)/s")
+    UNIDAD = {"B": 1, "kB": 1024, "MB": 1024 ** 2, "GB": 1024 ** 3}
+
+    def __init__(self):
+        self.total = 0
+        self.base = 0       # lo copiado en carpetas anteriores (cada rsync empieza de 0)
+        self.ultimo = 0
+
+    def leer(self, linea):
+        """Devuelve el texto a mostrar, o None si la línea no es de progreso."""
+        if linea.startswith("@@estado "):
+            return linea[9:].strip()
+        if linea.startswith("@@total "):
+            self.total = int(linea.split()[1])
+            return "Copiando %s..." % _gb(self.total)
+        m = self.LINEA.match(linea)
+        if not m:
+            return None
+        hecho = int(m.group(1).replace(",", ""))
+        if hecho < self.ultimo:
+            self.base += self.ultimo
+        self.ultimo = hecho
+        hecho += self.base
+        velocidad = float(m.group(3)) * self.UNIDAD[m.group(4)]
+        if not self.total:
+            return "%s copiados" % _gb(hecho)
+        pct = min(100, hecho * 100 // self.total)
+        texto = "%d%% · %s de %s" % (pct, _gb(hecho), _gb(self.total))
+        if velocidad > 0 and hecho < self.total:
+            texto += " · faltan %s" % _tiempo((self.total - hecho) / velocidad)
+        return texto
+
+
 def copiar_pendrive(app):
     script = os.path.join(config.BIN_DIR, "importar-usb.sh")
+    espera = None
 
     def trabajo():
-        r = subprocess.run(["sudo", "-n", script], capture_output=True, text=True)
-        lineas = [l for l in (r.stdout + r.stderr).splitlines() if l.strip()]
-        return r.returncode, "\n".join(lineas[-4:])
+        proceso = subprocess.Popen(["sudo", "-n", script], stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, text=True, errors="replace")
+        progreso = ProgresoCopia()
+        mensajes = []
+        for linea in proceso.stdout:   # rsync separa con \r: Python lo toma como fin de línea
+            if not linea.strip():
+                continue
+            texto = progreso.leer(linea)
+            if texto is None:
+                mensajes.append(linea.strip())
+                mensajes = mensajes[-4:]
+            elif espera is not None:
+                espera.detalle = texto
+        return proceso.wait(), "\n".join(mensajes)
 
     def terminar(app, resultado, error):
         if error:
@@ -770,7 +833,8 @@ def copiar_pendrive(app):
         rc, texto = resultado
         app.poner(Mensaje("¡Listo!" if rc == 0 else "Ojo", texto or "Terminó."))
 
-    app.poner(Espera("Copiar desde pendrive", "Copiando... no saques el pendrive", trabajo, terminar))
+    espera = Espera("Copiar desde pendrive", "Copiando... no saques el pendrive", trabajo, terminar)
+    app.poner(espera)
 
 
 def main():
