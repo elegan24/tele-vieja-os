@@ -315,6 +315,24 @@ Max core profile version: 4.6
     assert config.analizar_glxinfo("")[0] is False
 
 
+def probar_episodios():
+    casos = {"[Fansub B] One Piece 10 [720p].mp4": 10,
+             "[Fansub A] One Piece - 002 [1080p][ABC12345].mkv": 2,
+             "One Piece Episodio 1.mp4": 1, "One.Piece.003.HD.1080p.x264.mp4": 3,
+             "One Piece 045 - El hombre de 2 caras.mp4": 45, "One Piece Cap 1000.mkv": 1000,
+             "Los Simpsons S02E05.mkv": 20005, "One_Piece_Ep_12_720p.mp4": 12,
+             "One Piece (1999) 004.mp4": 4, "Pelicula.mp4": None}
+    for nombre, esperado in casos.items():
+        assert config.numero_episodio(nombre) == esperado, (nombre, config.numero_episodio(nombre))
+    orden = config.ordenar_episodios(["[B] One Piece 10.mp4", "One Piece Episodio 1.mp4",
+                                      "[A] One Piece 2 [720p].mkv", "One Piece 100.mp4"])
+    assert orden == ["One Piece Episodio 1.mp4", "[A] One Piece 2 [720p].mkv",
+                     "[B] One Piece 10.mp4", "One Piece 100.mp4"], orden
+    # películas sin número: por nombre
+    assert config.ordenar_episodios(["Volver al futuro.avi", "Titanic.mp4", "Rocky 2.mp4"]) == \
+        ["Rocky 2.mp4", "Titanic.mp4", "Volver al futuro.avi"]
+
+
 def probar_wine():
     from televieja import wine
     pc = os.path.join(config.RAIZ, "Juegos", "PC")
@@ -515,6 +533,7 @@ game (\n\tname "Street Fighter Alpha: Warriors' Dreams (Europe 950727)"\n\trom (
 game (\n\tname "Marvel Vs. Capcom: Clash of Super Heroes (Europe 980123)"\n\trom ( name mvsc.zip size 1 crc 0 )\n)\n
 game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 crc 0 )\n)\n''')
     config.ARCHIVO_NOMBRES_ARCADE = dat
+    probar_episodios()
     probar_wine()
     probar_glxinfo()
     app = menu.App()

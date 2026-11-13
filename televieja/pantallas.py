@@ -369,6 +369,7 @@ class Explorador(Lista):
                 carpetas.append(ruta)
             elif n.lower().endswith(self.ext):
                 archivos.append(ruta)
+        archivos = config.ordenar_episodios(archivos)
         self.archivos = archivos
         icono_archivo = {"video": "play", "radio": "nota", "historieta": "libro"}[self.tipo]
         if self.tipo in ("video", "radio") and len(archivos) > 1:

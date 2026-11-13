@@ -358,6 +358,45 @@ def clave_natural(texto):
     return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", texto)]
 
 
+# Para ordenar por número de episodio aunque los nombres vengan de distintos lados.
+_ENTRE_CORCHETES = re.compile(r"\[[^\]]*\]|\([^)]*\)|\{[^}]*\}")
+_TEMPORADA_EP = re.compile(r"\bs(\d{1,2})\s*[ex](\d{1,4})\b|\b(\d{1,2})x(\d{2,4})\b", re.I)
+_MARCA_EP = re.compile(r"(?:\bep(?:isodio|isode|is)?|\bcap(?:[ií]tulo)?|\bchapter|#)"
+                       r"[\s._-]*(\d{1,4})\b", re.I)
+_NO_EPISODIO = re.compile(r"\b\d{3,4}p\b|\b[xh]\.?26[45]\b|\b\d{1,2}bit\b|\b(?:19|20)\d\d\b"
+                          r"|\bmp4\b|\b5\.1\b|\b2\.0\b", re.I)
+
+
+def numero_episodio(nombre_archivo):
+    """El número de episodio de un nombre como "[Grupo] One Piece - 045 [720p].mkv"
+    (45), "Serie S02E05" (2005) o "Capítulo 7" (7). None si no tiene."""
+    base = os.path.splitext(os.path.basename(nombre_archivo))[0]
+    base = _ENTRE_CORCHETES.sub(" ", base).replace("_", " ")
+    m = _TEMPORADA_EP.search(base)
+    if m:
+        temporada, ep = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
+        return int(temporada) * 10000 + int(ep)
+    m = _MARCA_EP.search(base)
+    if m:
+        return int(m.group(1))
+    base = _NO_EPISODIO.sub(" ", base.replace(".", " "))
+    m = re.search(r"\d+", base)
+    return int(m.group()) if m else None
+
+
+def ordenar_episodios(rutas):
+    """Ordena por número de episodio si casi todos tienen uno; si no, por nombre."""
+    numeros = [numero_episodio(r) for r in rutas]
+    con_numero = sum(n is not None for n in numeros)
+    if len(rutas) < 2 or con_numero < 0.8 * len(rutas):
+        return sorted(rutas, key=lambda r: clave_natural(os.path.basename(r)))
+    infinito = float("inf")
+    pares = sorted(zip(numeros, rutas),
+                   key=lambda p: (infinito if p[0] is None else p[0],
+                                  clave_natural(os.path.basename(p[1]))))
+    return [r for _, r in pares]
+
+
 def nombre_lindo(nombre_archivo):
     base = os.path.splitext(nombre_archivo)[0]
     if " " not in base:
