@@ -247,6 +247,20 @@ def discos_externos():
     return discos
 
 
+def tamano_disco(punto):
+    """ "500 GB" (como dice la etiqueta del disco), o "" si no es un disco montado."""
+    try:
+        if not os.path.ismount(punto):
+            return ""
+        st = os.statvfs(punto)
+    except OSError:
+        return ""
+    gb = st.f_blocks * st.f_frsize / 1e9
+    if gb >= 1000:
+        return ("%.1f TB" % (gb / 1000)).replace(".0 ", " ").replace(".", ",")
+    return "%d GB" % round(gb) if gb >= 1 else "%d MB" % round(gb * 1000)
+
+
 def raices():
     """La carpeta TeleVieja de la netbook más las de los discos USB."""
     return [RAIZ] + [d["raiz"] for d in discos_externos() if d["raiz"]]

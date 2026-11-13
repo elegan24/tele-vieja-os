@@ -345,13 +345,14 @@ class Explorador(Lista):
         """Por cada disco USB: su TeleVieja/<subcarpeta> o, si no tiene, el disco entero."""
         salida = []
         for d in config.discos_externos():
-            if d["raiz"]:
-                carpeta = os.path.join(d["raiz"], self.subcarpeta)
-                if not os.path.isdir(carpeta):
-                    continue
-            else:
-                carpeta = d["punto"]
-            salida.append((d["nombre"], carpeta))
+            carpeta = os.path.join(d["raiz"], self.subcarpeta) if d["raiz"] else ""
+            if not os.path.isdir(carpeta):
+                carpeta = d["punto"]  # lo que haya en el disco, se busca recorriéndolo
+            nombre = d["nombre"]
+            tamano = config.tamano_disco(d["punto"])
+            if tamano:
+                nombre += " · " + tamano
+            salida.append((nombre, carpeta))
         return salida
 
     def cargar(self):

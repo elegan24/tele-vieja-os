@@ -120,6 +120,8 @@ def preparar_contenido():
     tocar(os.path.join(disco, "Juegos", "Family", "Super Mario Bros. 3 (U).nes"))
     tocar(os.path.join(disco, "Canal", "Tandas", "Publicidad Topper.mp4"))
     tocar(os.path.join(MONTAJES, "DISCO2", "Pelis", "Esperando la carroza.mkv"))
+    # el megapack completo, puesto en el disco fuera de TeleVieja/Historietas
+    tocar(os.path.join(MONTAJES, "1234-ABCD", "+MEGAPACK HISTORIETAS RETRO", "Condorito 001.cbz"))
     # historieta CBZ de ejemplo
     os.makedirs(os.path.join(R, "Historietas", "Mafalda"), exist_ok=True)
     cbz = os.path.join(R, "Historietas", "Patoruzito 042.cbz")
@@ -769,6 +771,9 @@ game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 c
     paso("b", "b")
     paso("down", "a")                 # Historietas
     foto("07-historietas")
+    # el disco 1234-ABCD tiene TeleVieja pero sin Historietas: igual aparece (se recorre entero)
+    textos = [it.texto for it in app.actual.items]
+    assert "Disco: 1234-ABCD" in textos, textos
     # abrir la CBZ
     indice = [i for i, it in enumerate(app.actual.items) if "Patoruzito" in it.texto][0]
     app.actual.sel = indice
