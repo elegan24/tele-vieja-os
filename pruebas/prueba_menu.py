@@ -445,6 +445,84 @@ def probar_mega(app, paso, foto):
     assert 'rel="manifest"' in pagina
 
 
+def probar_bluetooth(app, paso, foto):
+    """Opciones > Auriculares Bluetooth con equipos de mentira, y el sonido por el auricular."""
+    from televieja import reproducir
+    estado = {"adaptador": True, "conectado": False}
+
+    def bt_falso(app_, *args):
+        if args[0] == "buscar":
+            return {"adaptador": estado["adaptador"], "dispositivos": [
+                {"mac": "AA:BB:CC:DD:EE:01", "nombre": "Auricular i12", "audio": True,
+                 "emparejado": estado["conectado"], "conectado": estado["conectado"]},
+                {"mac": "AA:BB:CC:DD:EE:02", "nombre": "Celular", "audio": False,
+                 "emparejado": False, "conectado": False}]}
+        if args[0] == "conectar":
+            estado["conectado"] = True
+            return {"ok": True}
+        estado["conectado"] = False
+        return {"ok": True}
+
+    pantallas._bt = bt_falso
+    while len(app.pila) > 1:
+        app.sacar()
+
+    def esperar_pantalla(clase):
+        fin = time.time() + 5
+        while time.time() < fin and not isinstance(app.actual, clase):
+            app.vuelta(0.05)
+            time.sleep(0.02)
+        assert isinstance(app.actual, clase), app.actual
+
+    pantallas.abrir_bluetooth(app)
+    esperar_pantalla(pantallas.Auriculares)
+    textos = [it.texto for it in app.actual.items]
+    assert textos == ["Buscar de nuevo", "Auricular i12", "Celular"], textos
+    foto("26-bluetooth")
+    app.actual.sel = 1
+    paso("a")
+    esperar_pantalla(pantallas.Mensaje)
+    assert app.actual.titulo_caja == "¡Conectado!", (app.actual.titulo_caja, app.actual.texto)
+    foto("27-bluetooth-conectado")
+    while len(app.pila) > 1:
+        app.sacar()
+    # conectado: muestra "conectado" y ofrece desconectar
+    pantallas.abrir_bluetooth(app)
+    esperar_pantalla(pantallas.Auriculares)
+    assert app.actual.items[1].extra == "conectado"
+    app.actual.sel = 1
+    paso("a")
+    assert isinstance(app.actual, pantallas.Confirmar)
+    while len(app.pila) > 1:
+        app.sacar()
+    # sin adaptador: explica qué hacer
+    estado["adaptador"] = False
+    pantallas.abrir_bluetooth(app)
+    esperar_pantalla(pantallas.Mensaje)
+    assert "adaptador Bluetooth USB" in app.actual.texto, app.actual.texto
+    while len(app.pila) > 1:
+        app.sacar()
+    # el sonido va al auricular si bluealsa tiene uno conectado
+    falso = os.path.join(TMP, "bin-bt")
+    os.makedirs(falso, exist_ok=True)
+    with open(os.path.join(falso, "bluealsa-aplay"), "w") as f:
+        f.write("#!/bin/sh\necho 'bluealsa:DEV=AA:BB:CC:DD:EE:01,PROFILE=a2dp,SRV=org.bluealsa'\n"
+                "echo '    Auricular i12, trusted audio-headset, audio playback'\n")
+    os.chmod(os.path.join(falso, "bluealsa-aplay"), 0o755)
+    viejo = os.environ["PATH"]
+    os.environ["PATH"] = falso + os.pathsep + viejo
+    try:
+        orden = reproducir.mpv_base()
+        assert "--audio-device=alsa/bluealsa:DEV=AA:BB:CC:DD:EE:01,PROFILE=a2dp" in orden, orden
+        juego = reproducir.orden_juego("/x/core.so", "/x/rom.nes")
+        extra = juego[juego.index("--appendconfig") + 1].split("|")
+        auricular = open(extra[-1]).read()
+        assert 'audio_device = "bluealsa:DEV=AA:BB:CC:DD:EE:01,PROFILE=a2dp"' in auricular, auricular
+    finally:
+        os.environ["PATH"] = viejo
+    assert not any(a.startswith("--audio-device") for a in reproducir.mpv_base())
+
+
 def probar_wifi(app, paso, foto):
     """Opciones > WiFi con redes de mentira (acá no hay NetworkManager)."""
     llamadas = []
@@ -682,6 +760,7 @@ game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 c
     probar_controles(app, paso, foto)
     probar_mega(app, paso, foto)
     probar_wifi(app, paso, foto)
+    probar_bluetooth(app, paso, foto)
     app.poner(pantallas.Calibrar("Encontré un joystick nuevo: vamos a configurarlo."))
     foto("13-calibrar")
     paso("b")  # (Calibrar ignora botones traducidos; sacamos a mano)

@@ -17,7 +17,7 @@ from . import config, remoto, reproducir, ui  # noqa: E402
 from . import mando as mando_mod  # noqa: E402
 from .mando import Mando  # noqa: E402
 from .pantallas import (Calibrar, Confirmar, ControlCelular, Descargas, ElegirTema, Espera,  # noqa: E402
-                        Explorador, Lector, Protector, abrir_wifi,
+                        Explorador, Lector, Protector, abrir_bluetooth, abrir_wifi,
                         Item, Lista,
                         ListaSistemas, Mensaje)
 from .ui import ANCHO, ALTO, MARGEN_X, MARGEN_Y  # noqa: E402
@@ -683,6 +683,7 @@ def menu_principal(app):
     opciones = Lista("Opciones", [
         Item("Configurar joystick", ir(lambda: Calibrar()), icono="joystick"),
         Item("WiFi", abrir_wifi, icono="celular"),
+        Item("Auriculares Bluetooth", abrir_bluetooth, icono="nota"),
         Item("Tema", ir(ElegirTema), icono="engranaje"),
         Item("Control desde el celular", ir(ControlCelular), icono="celular"),
         Item("Descargas", ir(Descargas), icono="bajar"),

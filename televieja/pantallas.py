@@ -1415,3 +1415,84 @@ def conectar_red(app, red, clave):
                                                  red["nombre"], remoto.direccion_ip() or "-")))
     app.poner(Espera("WiFi", "Conectando a %s..." % red["nombre"],
                      lambda: _wifi(app, "conectar", red["nombre"], entrada=clave + "\n"), listo))
+
+
+# --- auriculares Bluetooth ----------------------------------------------------
+def _bt(app, *args):
+    script = os.path.join(config.BIN_DIR, "bluetooth.py")
+    r = subprocess.run(["sudo", "-n", script] + list(args), capture_output=True, text=True,
+                       timeout=120)
+    try:
+        return json.loads(r.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        raise RuntimeError((r.stderr or r.stdout or "No anduvo el Bluetooth").strip().splitlines()[-1])
+
+
+SIN_BLUETOOTH = ("Esta netbook no tiene Bluetooth (o está apagado).\n\n"
+                 "Enchufá un adaptador Bluetooth USB (uno chiquito, de los baratos) "
+                 "y volvé a entrar acá.")
+
+
+def abrir_bluetooth(app):
+    def listo(app, datos, error):
+        if error:
+            app.poner(Mensaje("Bluetooth", "No pude buscar: %s" % error))
+        elif not datos.get("adaptador"):
+            app.poner(Mensaje("Bluetooth", SIN_BLUETOOTH))
+        else:
+            app.poner(Auriculares(datos.get("dispositivos", [])))
+    app.poner(Espera("Bluetooth", "Buscando... poné el auricular en modo emparejar",
+                     lambda: _bt(app, "buscar"), listo))
+
+
+class Auriculares(Lista):
+    def __init__(self, dispositivos):
+        super().__init__("Bluetooth", ayuda="A: conectar  B: volver")
+        self.items = [Item("Buscar de nuevo", _bt_otra_vez, icono="flecha")]
+        for d in dispositivos:
+            extra = "conectado" if d["conectado"] else ("guardado" if d["emparejado"] else "")
+            self.items.append(Item(d["nombre"], lambda app, d=d: elegir_auricular(app, d),
+                                   icono="nota" if d["audio"] else "celular", extra=extra))
+        if not dispositivos:
+            self.items.append(Item("No encontré nada cerca", apagado=True))
+            self.items.append(Item("¿Cómo lo pongo en modo emparejar?", lambda app: app.poner(Mensaje(
+                "Bluetooth", "Sacá los auriculares del estuche (o mantené apretado el botón "
+                             "unos segundos) hasta que la luz titile. Si estaban conectados al "
+                             "celular, apagale el Bluetooth al celu primero.")), icono="engranaje"))
+
+
+def _bt_otra_vez(app):
+    app.sacar()
+    abrir_bluetooth(app)
+
+
+def elegir_auricular(app, d):
+    if d["conectado"]:
+        confirmar = Confirmar("%s está conectado. ¿Desconectarlo?" % d["nombre"],
+                              lambda app: _bt_accion(app, d, "desconectar"))
+        confirmar.al_no = lambda app: None
+        app.poner(confirmar)
+    else:
+        conectar_auricular(app, d)
+
+
+def _bt_accion(app, d, orden):
+    def listo(app, resultado, error):
+        app.sacar()  # la lista vieja
+        abrir_bluetooth(app)
+    app.poner(Espera("Bluetooth", "Desconectando...", lambda: _bt(app, orden, d["mac"]), listo))
+
+
+def conectar_auricular(app, d):
+    def listo(app, resultado, error):
+        if error or not resultado.get("ok"):
+            motivo = str(error) if error else (resultado.get("mensaje") or "No se pudo conectar.")
+            app.poner(Mensaje("No se pudo conectar", motivo))
+        else:
+            app.sacar()  # la lista vieja
+            app.poner(Mensaje("¡Conectado!", "El sonido de los videos, el canal, la radio y los "
+                                             "juegos sale ahora por %s.\nSi lo apagás, vuelve a "
+                                             "salir por la tele. La próxima vez se conecta solo "
+                                             "al prenderlo." % d["nombre"]))
+    app.poner(Espera("Bluetooth", "Conectando %s..." % d["nombre"],
+                     lambda: _bt(app, "conectar", d["mac"]), listo))

@@ -3,6 +3,7 @@ import json
 import os
 import random
 import socket
+import subprocess
 
 from . import config
 
@@ -19,8 +20,24 @@ def ruta_log(nombre):
 ASPECTO_PIXEL = {"720x480": "0.8889", "720x576": "1.0667"}
 
 
+def salida_bluetooth():
+    """Si hay un auricular Bluetooth conectado, su salida de sonido ALSA (o None)."""
+    try:
+        r = subprocess.run(["bluealsa-aplay", "-L"], capture_output=True, text=True, timeout=3)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    for linea in r.stdout.splitlines():
+        if linea.startswith("bluealsa:") and "PROFILE=a2dp" in linea:
+            # sin ",SRV=..." (es el servicio por defecto)
+            return ",".join(p for p in linea.strip().split(",") if not p.startswith("SRV="))
+    return None
+
+
 def mpv_base():
     orden = ["mpv", "--fullscreen", "--input-ipc-server=" + SOCKET_MPV]
+    auricular = salida_bluetooth()
+    if auricular:
+        orden.append("--audio-device=alsa/" + auricular)
     try:
         with open("/tmp/televieja-resolucion") as f:
             res = f.read().strip()
@@ -90,8 +107,18 @@ def orden_juego(core, rom):
     orden = ["retroarch", "--fullscreen"]
     if os.path.isfile(config.ARCHIVO_RA):
         orden += ["--config", config.ARCHIVO_RA]
+    extras = []
     if os.path.isfile(config.ARCHIVO_RA_JOYSTICK):
-        orden += ["--appendconfig", config.ARCHIVO_RA_JOYSTICK]
+        extras.append(config.ARCHIVO_RA_JOYSTICK)
+    auricular = salida_bluetooth()
+    if auricular:
+        # el Bluetooth tarda un poco más: más margen para que no se entrecorte
+        ruta = os.path.join(config.CONFIG_DIR, "retroarch-auricular.cfg")
+        with open(ruta, "w") as f:
+            f.write('audio_device = "%s"\naudio_latency = "200"\n' % auricular)
+        extras.append(ruta)
+    if extras:
+        orden += ["--appendconfig", "|".join(extras)]
     return orden + ["-L", core, rom]
 
 
