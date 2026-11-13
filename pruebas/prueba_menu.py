@@ -60,6 +60,21 @@ def preparar_contenido():
     tocar(os.path.join(R, "Dale Play", "Temporada 1", "Capitulo 1.mkv"))
     for n in ("OPLAT-44-1192.mp4", "OP.LAT-03-720P.mp4", "OPLAT-10-1201.mp4"):
         tocar(os.path.join(R, "Videos", "One Piece", n))
+    # fondos de pantalla: uno grande 16:9, un póster vertical y un PNG de 256 colores
+    fondos = os.path.join(R, "Videos", "One Piece", "Fondos de Pantalla")
+    os.makedirs(fondos, exist_ok=True)
+    grande = pygame.Surface((1920, 1080))
+    for x in range(0, 1920, 120):
+        pygame.draw.rect(grande, (x % 255, 90, 200 - x % 200), (x, 0, 120, 1080))
+    pygame.draw.circle(grande, (255, 220, 0), (960, 540), 300)
+    pygame.image.save(grande, os.path.join(fondos, "Luffy Gear 5.png"))
+    poster = pygame.Surface((600, 900))
+    poster.fill((230, 210, 160))
+    pygame.draw.rect(poster, (40, 30, 20), (60, 60, 480, 120))
+    pygame.image.save(poster, os.path.join(fondos, "Wanted Zoro.jpg"))
+    paleta = pygame.Surface((320, 200), depth=8)
+    paleta.fill((200, 0, 0))
+    pygame.image.save(paleta, os.path.join(fondos, "Bandera.png"))
     tocar(os.path.join(R, "Papeles", "nota.txt"))
     tocar(os.path.join(R, "Canal", "Programas", "El Zorro 01.mp4"))
     tocar(os.path.join(R, "Canal", "Tandas", "Publicidad Coca 1991.mp4"))
@@ -661,8 +676,31 @@ game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 c
     app.actual.sel = [it.texto for it in app.actual.items].index("One Piece")
     paso("a")
     textos = [it.texto for it in app.actual.items]
-    assert textos == ["Mezclar todo", "Episodio 3", "Episodio 10", "Episodio 44"], textos
+    assert textos == ["Mezclar todo", "Fondos de Pantalla", "Episodio 3", "Episodio 10",
+                      "Episodio 44"], textos
     foto("03b-videos-episodios")
+    app.actual.sel = [it.texto for it in app.actual.items].index("Fondos de Pantalla")
+    paso("a")
+    textos = [it.texto for it in app.actual.items]
+    assert textos == ["Bandera", "Luffy Gear 5", "Wanted Zoro"], textos
+    assert all(it.icono == "foto" for it in app.actual.items)
+    app.actual.sel = 1
+    paso("a")
+    assert isinstance(app.actual, pantallas.Fotos), app.actual
+    visor = app.actual
+    for paso_visor in range(3):          # las tres se pueden abrir (también la de 256 colores)
+        fin = time.time() + 5
+        while time.time() < fin and visor.i not in visor.cache and visor.i not in visor.errores:
+            time.sleep(0.02)
+        assert visor.i in visor.cache, (visor.i, visor.errores)
+        if paso_visor == 0:
+            assert visor.cache[1].get_size() == (640, 360), visor.cache[1].get_size()
+            foto("03c-fondo-pantalla")
+        paso("right")
+    assert visor.i == 1                  # dio la vuelta
+    paso("b")
+    assert app.actual.titulo == "Fondos de Pantalla", app.actual.titulo
+    paso("b")
     paso("b")
     app.actual.sel = [it.texto for it in app.actual.items].index("El Chavo del 8")
     paso("a")                         # entrar a la carpeta

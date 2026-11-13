@@ -356,7 +356,7 @@ class Explorador(Lista):
 
     def cargar(self):
         self.items = []
-        carpetas, archivos = [], []
+        carpetas, archivos, imagenes = [], [], []
         try:
             nombres = sorted(os.listdir(self.carpeta), key=config.clave_natural)
         except OSError:
@@ -369,7 +369,10 @@ class Explorador(Lista):
                 carpetas.append(ruta)
             elif n.lower().endswith(self.ext):
                 archivos.append(ruta)
+            elif self.tipo == "video" and n.lower().endswith(config.EXT_IMAGEN):
+                imagenes.append(ruta)
         archivos = config.ordenar_episodios(archivos)
+        imagenes.sort(key=lambda r: config.clave_natural(os.path.basename(r)))
         # Si todos tienen número y nombres tipo código, se muestran como "Episodio N"
         por_episodio = (self.tipo == "video" and len(archivos) > 1
                         and all(config.etiqueta_episodio(a) for a in archivos))
@@ -385,7 +388,7 @@ class Explorador(Lista):
                                        icono="disco"))
         if not self.historial and self.tipo == "video":
             # Carpetas con videos que quedaron sueltas en TeleVieja (fuera de Videos)
-            for nombre, c, de_disco in config.carpetas_sueltas(self.ext):
+            for nombre, c, de_disco in config.carpetas_sueltas(self.ext + config.EXT_IMAGEN):
                 if de_disco:
                     nombre += " (disco)"
                 self.items.append(Item(nombre, lambda app, c=c, n=nombre: self.entrar(app, c, n),
@@ -409,6 +412,10 @@ class Explorador(Lista):
             nombre = os.path.basename(a)
             texto = (por_episodio and config.etiqueta_episodio(nombre)) or config.nombre_lindo(nombre)
             self.items.append(Item(texto, accion, icono=icono_archivo, extra=extra))
+        for i, im in enumerate(imagenes):  # fondos de pantalla, pósters, fotos...
+            self.items.append(Item(os.path.splitext(os.path.basename(im))[0],
+                                   lambda app, i=i, imagenes=imagenes: app.poner(Fotos(imagenes, i)),
+                                   icono="foto"))
         if not self.items:
             self.items.append(Item("(vacío)", apagado=True))
             if self.historial:
@@ -652,6 +659,100 @@ def abrir_historieta(app, ruta):
             app.poner(Lector(ruta, libro))
 
     app.poner(Espera(nombre, "Abriendo historieta...", lambda: historietas.abrir(ruta), terminar))
+
+
+class Fotos(Pantalla):
+    """Muestra imágenes a pantalla completa. Izquierda/derecha: otra; A: pasar solas."""
+    sin_marco = True
+    SEGUNDOS_PASE = 6
+
+    def __init__(self, rutas, indice=0):
+        self.rutas = rutas
+        self.i = indice
+        self.cache = {}           # índice -> imagen ya achicada al tamaño de la pantalla
+        self.errores = {}
+        self.cola = queue.Queue()
+        self.pase = False
+        self.reloj_pase = 0.0
+        self.cartel_hasta = time.monotonic() + 3
+        self.vivo = True
+        threading.Thread(target=self._trabajador, daemon=True).start()
+        self._pedir_cercanas()
+
+    def _trabajador(self):
+        while self.vivo:
+            try:
+                i = self.cola.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if i in self.cache or i in self.errores:
+                continue
+            try:
+                im = pygame.image.load(self.rutas[i])
+                ancho, alto = im.get_size()
+                escala = min(ANCHO / ancho, ALTO / alto)
+                tam = (max(1, int(ancho * escala)), max(1, int(alto * escala)))
+                if im.get_bitsize() not in (24, 32):
+                    im = im.convert_alpha() if im.get_alpha() is not None else im.convert(32, 0)
+                self.cache[i] = pygame.transform.smoothscale(im, tam)
+            except Exception as e:  # noqa: BLE001 - se muestra en pantalla
+                self.errores[i] = str(e) or "No se pudo abrir"
+            for viejo in [k for k in list(self.cache) if abs(k - self.i) > 2]:
+                self.cache.pop(viejo, None)  # poca memoria: solo las de al lado
+
+    def _pedir_cercanas(self):
+        for d in (0, 1, -1):
+            j = (self.i + d) % len(self.rutas)
+            self.cola.put(j)
+
+    def _mover(self, app, paso):
+        self.i = (self.i + paso) % len(self.rutas)
+        self.cartel_hasta = time.monotonic() + 3
+        self.reloj_pase = 0.0
+        self._pedir_cercanas()
+        app.sucio = True
+
+    def accion(self, app, boton):
+        if boton in ("right", "r", "down"):
+            self._mover(app, 1)
+        elif boton in ("left", "l", "up"):
+            self._mover(app, -1)
+        elif boton in ("a", "start"):
+            self.pase = not self.pase
+            self.reloj_pase = 0.0
+            app.avisar("Pasan solas cada %d segundos" % self.SEGUNDOS_PASE if self.pase
+                       else "Pase automático apagado")
+        elif boton in ("b", "inicio"):
+            self.vivo = False
+            app.sacar()
+
+    def actualizar(self, app, dt):
+        if self.pase:
+            app.ultima_actividad = time.monotonic()  # que no salte el protector
+            self.reloj_pase += dt
+            if self.reloj_pase >= self.SEGUNDOS_PASE:
+                self._mover(app, 1)
+        app.sucio = True
+
+    def dibujar(self, app, sup):
+        sup.fill((0, 0, 0))
+        f = app.fuentes
+        im = self.cache.get(self.i)
+        if im is not None:
+            sup.blit(im, im.get_rect(center=(ANCHO // 2, ALTO // 2)))
+        elif self.i in self.errores:
+            ui.escribir(sup, f.chica, "No se pudo abrir esta imagen", ui.GRIS,
+                        (ANCHO // 2, ALTO // 2), "center")
+        else:
+            ui.escribir(sup, f.chica, "Cargando...", ui.GRIS, (ANCHO // 2, ALTO // 2), "center")
+        if time.monotonic() < self.cartel_hasta:
+            nombre = os.path.splitext(os.path.basename(self.rutas[self.i]))[0]
+            texto = "%d / %d   %s" % (self.i + 1, len(self.rutas), nombre)
+            texto = ui.recortar(f.chica, texto, ANCHO - 2 * MARGEN_X, f.puntos)
+            caja = pygame.Surface((ANCHO, 34), pygame.SRCALPHA)
+            caja.fill((0, 0, 0, 170))
+            sup.blit(caja, (0, ALTO - MARGEN_Y - 34))
+            ui.escribir(sup, f.chica, texto, ui.BLANCO, (ANCHO // 2, ALTO - MARGEN_Y - 17), "center")
 
 
 class Lector(Pantalla):

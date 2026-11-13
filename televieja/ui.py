@@ -173,6 +173,11 @@ def icono(sup, nombre, x, y, color):
         pygame.draw.circle(sup, color, (x + 11, y + 11), 10, 3)
         pygame.draw.line(sup, color, (x + 11, y + 11), (x + 11, y + 5), 3)
         pygame.draw.line(sup, color, (x + 11, y + 11), (x + 16, y + 13), 3)
+    elif nombre == "foto":
+        pygame.draw.rect(sup, color, (x + 1, y + 3, 21, 16), 2, border_radius=2)
+        pygame.draw.polygon(sup, color, [(x + 4, y + 16), (x + 9, y + 9), (x + 13, y + 13),
+                                         (x + 15, y + 11), (x + 19, y + 16)])
+        pygame.draw.circle(sup, color, (x + 16, y + 7), 2)
     elif nombre == "flecha":
         pygame.draw.polygon(sup, color, [(x + 2, y + 11), (x + 12, y + 2), (x + 12, y + 20)])
         pygame.draw.rect(sup, color, (x + 11, y + 8, 10, 6))
