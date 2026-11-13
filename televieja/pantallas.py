@@ -370,6 +370,9 @@ class Explorador(Lista):
             elif n.lower().endswith(self.ext):
                 archivos.append(ruta)
         archivos = config.ordenar_episodios(archivos)
+        # Si todos tienen número y nombres tipo código, se muestran como "Episodio N"
+        por_episodio = (self.tipo == "video" and len(archivos) > 1
+                        and all(config.etiqueta_episodio(a) for a in archivos))
         self.archivos = archivos
         icono_archivo = {"video": "play", "radio": "nota", "historieta": "libro"}[self.tipo]
         if self.tipo in ("video", "radio") and len(archivos) > 1:
@@ -403,8 +406,9 @@ class Explorador(Lista):
                 accion = (lambda app, a=a: abrir_historieta(app, a))
             else:
                 accion = (lambda app, i=i: self.reproducir(app, i))
-            self.items.append(Item(config.nombre_lindo(os.path.basename(a)), accion,
-                                   icono=icono_archivo, extra=extra))
+            nombre = os.path.basename(a)
+            texto = (por_episodio and config.etiqueta_episodio(nombre)) or config.nombre_lindo(nombre)
+            self.items.append(Item(texto, accion, icono=icono_archivo, extra=extra))
         if not self.items:
             self.items.append(Item("(vacío)", apagado=True))
             if self.historial:

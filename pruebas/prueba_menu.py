@@ -58,6 +58,8 @@ def preparar_contenido():
     tocar(os.path.join(R, "Videos", "Volver al futuro.avi"))
     # carpeta que quedó suelta al copiar un disco (fuera de Videos) y otra sin videos
     tocar(os.path.join(R, "Dale Play", "Temporada 1", "Capitulo 1.mkv"))
+    for n in ("OPLAT-44-1192.mp4", "OP.LAT-03-720P.mp4", "OPLAT-10-1201.mp4"):
+        tocar(os.path.join(R, "Videos", "One Piece", n))
     tocar(os.path.join(R, "Papeles", "nota.txt"))
     tocar(os.path.join(R, "Canal", "Programas", "El Zorro 01.mp4"))
     tocar(os.path.join(R, "Canal", "Tandas", "Publicidad Coca 1991.mp4"))
@@ -328,6 +330,14 @@ def probar_episodios():
                                       "[A] One Piece 2 [720p].mkv", "One Piece 100.mp4"])
     assert orden == ["One Piece Episodio 1.mp4", "[A] One Piece 2 [720p].mkv",
                      "[B] One Piece 10.mp4", "One Piece 100.mp4"], orden
+    # el pack de One Piece mezcla "OP.LAT-03-720P" con "OPLAT-44-1192"
+    orden = config.ordenar_episodios(["OPLAT-44-1192.mp4", "OP.LAT-03-720P.mp4",
+                                      "OPLAT-4-1201.mp4", "OP.LAT-100-720P.mp4"])
+    assert orden == ["OP.LAT-03-720P.mp4", "OPLAT-4-1201.mp4", "OPLAT-44-1192.mp4",
+                     "OP.LAT-100-720P.mp4"], orden
+    assert config.etiqueta_episodio("OPLAT-44-1192.mp4") == "Episodio 44"
+    assert config.etiqueta_episodio("Volver al futuro.avi") is None
+    assert config.etiqueta_episodio("Los Simpsons S02E05.mkv") is None
     # películas sin número: por nombre
     assert config.ordenar_episodios(["Volver al futuro.avi", "Titanic.mp4", "Rocky 2.mp4"]) == \
         ["Rocky 2.mp4", "Titanic.mp4", "Volver al futuro.avi"]
@@ -570,6 +580,12 @@ game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 c
     foto("02b-videos-disco")
     paso("b")
     assert app.actual.titulo == "Videos"
+    app.actual.sel = [it.texto for it in app.actual.items].index("One Piece")
+    paso("a")
+    textos = [it.texto for it in app.actual.items]
+    assert textos == ["Mezclar todo", "Episodio 3", "Episodio 10", "Episodio 44"], textos
+    foto("03b-videos-episodios")
+    paso("b")
     app.actual.sel = [it.texto for it in app.actual.items].index("El Chavo del 8")
     paso("a")                         # entrar a la carpeta
     foto("03-videos-carpeta")

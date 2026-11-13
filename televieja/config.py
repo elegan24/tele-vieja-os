@@ -397,6 +397,15 @@ def ordenar_episodios(rutas):
     return [r for _, r in pares]
 
 
+def etiqueta_episodio(nombre_archivo):
+    """Para nombres tipo código ("OPLAT-44-1192.mp4") muestra "Episodio 44"."""
+    base = os.path.splitext(os.path.basename(nombre_archivo))[0]
+    n = numero_episodio(nombre_archivo)
+    if n is None or n >= 10000 or " " in base.replace("_", " "):
+        return None
+    return "Episodio %d" % n
+
+
 def nombre_lindo(nombre_archivo):
     base = os.path.splitext(nombre_archivo)[0]
     if " " not in base:
