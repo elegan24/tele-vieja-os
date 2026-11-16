@@ -1598,3 +1598,194 @@ def conectar_auricular(app, d):
                                              "al prenderlo." % d["nombre"]))
     app.poner(Espera("Bluetooth", "Conectando %s..." % d["nombre"],
                      lambda: _bt(app, "conectar", d["mac"]), listo))
+
+
+# --- grilla del Canal Retro ----------------------------------------------------
+DIAS_CORTOS = {"todos": "Todos", "lun-vie": "Lun a vie", "finde": "Sáb y dom",
+               "sab": "Sábados", "dom": "Domingos"}
+
+
+def _orden_bloque(b):
+    from . import grilla
+    return (grilla.ORDEN_DIAS.index(b["dias"]), grilla.minutos(b["hora"]))
+
+
+class GrillaCanal(Lista):
+    """Los bloques de la programación. El que está al aire dice "AL AIRE"."""
+
+    def __init__(self):
+        super().__init__("Grilla del canal", ayuda="A: cambiar  B: volver")
+        self.cargar()
+
+    def cargar(self):
+        from . import grilla
+        self.grilla = grilla.cargar()
+        al_aire = grilla.bloque_en(self.grilla)
+        bloques = sorted(enumerate(self.grilla["bloques"]), key=lambda p: _orden_bloque(p[1]))
+        self.items = []
+        for i, b in bloques:
+            extra = "AL AIRE" if i == al_aire else ("maratón" if b["tipo"] == "maraton" else "")
+            self.items.append(Item("%s %s  %s" % (DIAS_CORTOS[b["dias"]], b["hora"], b["nombre"]),
+                                   lambda app, i=i: app.poner(EditarBloque(self.grilla, i)),
+                                   icono="reloj", extra=extra))
+        self.items.append(Item("Agregar un bloque", self._agregar, icono="flecha"))
+        self.items.append(Item("Volver a la grilla de fábrica", self._de_fabrica, icono="engranaje"))
+        self.ajustar()
+
+    def _agregar(self, app):
+        from . import grilla
+        self.grilla["bloques"].append({"nombre": "Bloque nuevo", "dias": "todos", "hora": "18:00",
+                                       "tipo": "mezcla", "series": []})
+        grilla.guardar(self.grilla)
+        app.poner(EditarBloque(self.grilla, len(self.grilla["bloques"]) - 1))
+
+    def _de_fabrica(self, app):
+        def si(app):
+            from . import grilla
+            grilla.guardar(json.loads(json.dumps(grilla.POR_DEFECTO)))
+            self.cargar()
+            app.avisar("Grilla de fábrica")
+        app.poner(Confirmar("¿Borrar tus cambios y volver a la grilla de fábrica?", si))
+
+    def al_volver(self, app):
+        self.cargar()
+        app.sucio = True
+
+
+class EditarBloque(Lista):
+    """Un bloque: nombre, días, hora, tipo y series. Izquierda/derecha cambian los valores."""
+
+    def __init__(self, grilla_datos, indice):
+        super().__init__("Bloque", ayuda="A / ←→: cambiar  B: listo")
+        self.grilla = grilla_datos
+        self.i = indice
+        self.cargar()
+
+    @property
+    def bloque(self):
+        return self.grilla["bloques"][self.i]
+
+    def cargar(self):
+        from . import grilla
+        b = self.bloque
+        self.titulo = b["nombre"]
+        if b["tipo"] == "maraton":
+            series = "Serie: " + (b["series"][0] if b["series"] else "una distinta cada semana")
+        elif b["series"]:
+            series = "Series: %d elegidas" % len(b["series"])
+        else:
+            series = "Series: todas"
+        self.items = [
+            Item("Nombre: " + b["nombre"], self._nombre, icono="engranaje", dato="nombre"),
+            Item("Días: " + grilla.DIAS[b["dias"]][0], lambda app: self._cambiar(app, "dias", 1),
+                 icono="reloj", dato="dias"),
+            Item("Empieza: " + b["hora"], lambda app: self._cambiar(app, "hora", 1),
+                 icono="reloj", dato="hora"),
+            Item(grilla.TIPOS[b["tipo"]], lambda app: self._cambiar(app, "tipo", 1),
+                 icono="tele", dato="tipo"),
+            Item(series, self._series, icono="play"),
+            Item("Borrar este bloque", self._borrar, icono="apagar"),
+        ]
+        self.ajustar()
+
+    def _guardar(self, app):
+        from . import grilla
+        grilla.guardar(self.grilla)
+        self.cargar()
+        app.sucio = True
+
+    def _cambiar(self, app, campo, sentido):
+        from . import grilla
+        b = self.bloque
+        if campo == "dias":
+            orden = grilla.ORDEN_DIAS
+            b["dias"] = orden[(orden.index(b["dias"]) + sentido) % len(orden)]
+        elif campo == "hora":
+            m = (grilla.minutos(b["hora"]) + 30 * sentido) % 1440
+            b["hora"] = "%02d:%02d" % divmod(m, 60)
+        elif campo == "tipo":
+            b["tipo"] = "maraton" if b["tipo"] == "mezcla" else "mezcla"
+            if b["tipo"] == "maraton":
+                b["series"] = b["series"][:1]
+        app.sonido.tocar("mover")
+        self._guardar(app)
+
+    def accion(self, app, boton):
+        dato = self.items[self.sel].dato if self.items else None
+        if boton in ("left", "right") and dato in ("dias", "hora", "tipo"):
+            self._cambiar(app, dato, 1 if boton == "right" else -1)
+        else:
+            super().accion(app, boton)
+
+    def _nombre(self, app):
+        def listo(app, texto):
+            if texto.strip():
+                self.bloque["nombre"] = texto.strip()[:40]
+                self._guardar(app)
+        app.poner(Teclado("Nombre del bloque", listo))
+
+    def _series(self, app):
+        from . import grilla
+
+        def listo(app, series, error):
+            if error or not series:
+                app.poner(Mensaje("Series", "No encontré series. Poné carpetas con capítulos en "
+                                            "TeleVieja/Canal/Programas (o en Videos)."))
+            else:
+                app.poner(ElegirSeries(self, sorted(series, key=config.clave_natural)))
+        app.poner(Espera("Series", "Buscando series...", grilla.carpetas_de_series, listo))
+
+    def _borrar(self, app):
+        def si(app):
+            from . import grilla
+            if len(self.grilla["bloques"]) <= 1:
+                app.avisar("Tiene que quedar al menos un bloque")
+                return
+            del self.grilla["bloques"][self.i]
+            grilla.guardar(self.grilla)
+            app.sacar()  # vuelve a la grilla
+        app.poner(Confirmar("¿Borrar el bloque \"%s\"?" % self.bloque["nombre"], si))
+
+    def al_volver(self, app):
+        self.cargar()
+        app.sucio = True
+
+
+class ElegirSeries(Lista):
+    """Qué series van en el bloque. En una maratón se elige una sola."""
+
+    def __init__(self, editor, series):
+        maraton = editor.bloque["tipo"] == "maraton"
+        super().__init__("Serie de la maratón" if maraton else "Series del bloque",
+                         ayuda="A: elegir  B: listo" if maraton else "A: poner/sacar  B: listo")
+        self.editor = editor
+        self.series = series
+        self.cargar()
+
+    def cargar(self):
+        b = self.editor.bloque
+        maraton = b["tipo"] == "maraton"
+        primera = "Una distinta cada semana" if maraton else "Todas las series"
+        self.items = [Item(primera, lambda app: self._elegir(app, None), icono="mezclar",
+                           extra="sí" if not b["series"] else "")]
+        for s in self.series:
+            self.items.append(Item(s, lambda app, s=s: self._elegir(app, s), icono="carpeta",
+                                   extra="sí" if s in b["series"] else ""))
+        self.ajustar()
+
+    def _elegir(self, app, serie):
+        b = self.editor.bloque
+        if serie is None:
+            b["series"] = []
+        elif b["tipo"] == "maraton":
+            b["series"] = [serie]
+        elif serie in b["series"]:
+            b["series"].remove(serie)
+        else:
+            b["series"].append(serie)
+        self.editor._guardar(app)
+        if b["tipo"] == "maraton":
+            app.sacar()
+        else:
+            self.cargar()
+            app.sucio = True

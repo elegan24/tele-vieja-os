@@ -450,15 +450,27 @@ Al elegir un capítulo, sigue solo con los siguientes. Si salís a la mitad, la 
 
 ### Canal Retro
 
-Mezcla tus programas con las tandas y los pasa sin parar, con el nombre del canal y la
-hora en la esquina. Al entrar agarrás un programa empezado, como cuando prendías la tele.
-Derecha o R cambia de programa · A muestra qué estás viendo · **B sale**.
+Un canal de aire de verdad, con **grilla horaria**. Al prenderlo agarrás lo que "está
+dando" (empezado, como cuando prendías la tele). Derecha o R: zapping · A: qué estás
+viendo · **B sale**.
 
-Cuando termina un programa aparece una **presentación** al estilo Cartoon Network (tablero
-de damas y "A continuación: *la serie que sigue*"); después las tandas y el próximo
-programa, que arranca desde el principio. Si tenés presentaciones de verdad (cortinas o
-"bumpers" de canales viejos), ponelas en `TeleVieja/Canal/Cortinas` y se usan esas.
-La serie es la primera carpeta adentro de `Programas` (o de `Videos`).
+- **Bloques de programación:** el día se divide en bloques (*Mañana de dibujos*, *La
+  tarde*, *Noche de series*, *Trasnoche*...). En los bloques "mezcla" van series al
+  azar; en las **maratones** (como la del domingo) va una sola serie, capítulo tras
+  capítulo.
+- **Cada serie sigue donde quedó:** si hoy pasó el capítulo 44 de One Piece, la próxima
+  vez que aparezca va el 45. Al terminar la serie, vuelve a empezar.
+- **Continuidad:** al terminar un programa sale una cortina "A CONTINUACIÓN" (o
+  "COMIENZA: MARATÓN DEL DOMINGO" si cambia el bloque), después las tandas y el
+  programa siguiente. Si tenés cortinas o bumpers de verdad, ponelos en
+  `TeleVieja/Canal/Cortinas` y se usan esos.
+- **Armar la grilla:** *Opciones → Grilla del canal*. Cada bloque tiene nombre, días
+  (todos, lunes a viernes, fin de semana, sábados, domingos), hora de inicio, tipo
+  (mezcla o maratón) y qué series van. El que está al aire dice "AL AIRE".
+- **Las series** son las carpetas de `Canal/Programas` (si está vacía, las de
+  `Videos`). Si una carpeta es un pack con varias series adentro, se separan solas. El
+  nombre que aparece en la cortina es el de la carpeta: renombrala si querés que diga
+  otra cosa (por ejemplo "One Piece" en vez del nombre del pack).
 
 ### Juegos
 

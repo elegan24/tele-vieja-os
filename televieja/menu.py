@@ -16,7 +16,8 @@ import pygame  # noqa: E402
 from . import config, remoto, reproducir, ui  # noqa: E402
 from . import mando as mando_mod  # noqa: E402
 from .mando import Mando  # noqa: E402
-from .pantallas import (Calibrar, Confirmar, ControlCelular, Descargas, ElegirTema, Espera,  # noqa: E402
+from .pantallas import (Calibrar, Confirmar, ControlCelular, Descargas, ElegirTema, Espera,
+                        GrillaCanal,  # noqa: E402
                         Explorador, Lector, Protector, abrir_bluetooth, abrir_wifi,
                         Item, Lista,
                         ListaSistemas, Mensaje)
@@ -519,16 +520,20 @@ class App:
             self.poner(Mensaje("No se pudo abrir el juego", self._ultimas_lineas("pc")))
 
     def canal(self):
-        lista = reproducir.armar_canal(self.opciones)
-        if not lista:
-            self.poner(Mensaje("El canal está vacío",
-                               "Poné videos en TeleVieja/Canal/Programas (y publicidades viejas "
-                               "en TeleVieja/Canal/Tandas)."))
-            return
-        from . import temas
-        datos = temas.TEMAS.get(self.tema, temas.TEMAS["clasico"])
-        color = temas.color_ass(datos.get("logo", datos["acento"]))
-        self.lanzar_mpv(reproducir.orden_canal(self.opciones, lista, color), reproducir.control_canal)
+        """Arma la programación (puede tardar con miles de capítulos) y prende el canal."""
+        def listo(app, lista, error):
+            if error or not lista:
+                app.poner(Mensaje("El canal está vacío",
+                                  "Poné carpetas con capítulos en TeleVieja/Canal/Programas (o en "
+                                  "Videos) y publicidades viejas en TeleVieja/Canal/Tandas."
+                                  + ("\n\n%s" % error if error else "")))
+                return
+            from . import temas
+            datos = temas.TEMAS.get(app.tema, temas.TEMAS["clasico"])
+            color = temas.color_ass(datos.get("logo", datos["acento"]))
+            app.lanzar_mpv(reproducir.orden_canal(app.opciones, lista, color), reproducir.control_canal)
+        self.poner(Espera("Canal Retro", "Sintonizando...",
+                          lambda: reproducir.armar_canal(self.opciones), listo))
 
     def volumen(self, boton):
         """Volumen de la netbook (sirve para todo: menú, videos y juegos)."""
@@ -684,6 +689,7 @@ def menu_principal(app):
         Item("Configurar joystick", ir(lambda: Calibrar()), icono="joystick"),
         Item("WiFi", abrir_wifi, icono="celular"),
         Item("Auriculares Bluetooth", abrir_bluetooth, icono="nota"),
+        Item("Grilla del canal", ir(GrillaCanal), icono="reloj"),
         Item("Tema", ir(ElegirTema), icono="engranaje"),
         Item("Control desde el celular", ir(ControlCelular), icono="celular"),
         Item("Descargas", ir(Descargas), icono="bajar"),

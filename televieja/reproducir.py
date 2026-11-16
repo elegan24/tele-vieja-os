@@ -1,7 +1,6 @@
 """Arma las órdenes para mpv (videos, canal, radio) y RetroArch (juegos)."""
 import json
 import os
-import random
 import socket
 import subprocess
 
@@ -60,60 +59,12 @@ def orden_radio(archivos):
     ] + list(archivos)
 
 
-def _programas_con_serie(partes):
-    """[(ruta, título)] de todas las raíces. El título es "Serie — Episodio": la serie es
-    la primera carpeta adentro de Programas (o Videos)."""
-    salida = []
-    for r in config.raices():
-        base = os.path.join(r, *partes)
-        for ruta in config.listar_archivos(base, config.EXT_VIDEO):
-            rel = os.path.relpath(ruta, base).split(os.sep)
-            archivo = os.path.basename(ruta)
-            episodio = config.etiqueta_episodio(archivo) or config.nombre_lindo(archivo)
-            if len(rel) > 1:
-                serie = rel[0]
-                for basura in ("+", "-", "_"):
-                    serie = serie.strip(basura + " ")
-                titulo = "%s — %s" % (serie or rel[0], episodio)
-            else:
-                titulo = config.nombre_lindo(archivo)
-            salida.append((ruta, titulo))
-    return salida
-
-
 def armar_canal(opciones):
-    """Mezcla programas y tandas como un canal de aire. Devuelve la ruta de la lista.
-
-    Entre programa y programa van las tandas y, si hay, una "cortina" (presentación
-    del canal) de Canal/Cortinas. Si no hay cortinas, canal.lua dibuja una."""
-    programas = _programas_con_serie(("Canal", "Programas"))
-    if not programas:
-        programas = _programas_con_serie(("Videos",))
-    if not programas:
-        return None
-    tandas = config.listar_en_todas(("Canal", "Tandas"), config.EXT_VIDEO)
-    cortinas = config.listar_en_todas(("Canal", "Cortinas"), config.EXT_VIDEO)
-    try:
-        por_corte = max(0, int(opciones.get("TANDAS_POR_CORTE", "2")))
-    except ValueError:
-        por_corte = 2
-    random.shuffle(programas)
-    lista = []
-    for p in programas:
-        lista.append(p)
-        if tandas and por_corte:
-            lista.extend((t, None) for t in random.sample(tandas, min(por_corte, len(tandas))))
-        if cortinas:
-            lista.append((random.choice(cortinas), None))
-    os.makedirs(config.CACHE_DIR, exist_ok=True)
-    ruta = os.path.join(config.CACHE_DIR, "canal.m3u")
-    with open(ruta, "w", encoding="utf-8") as f:
-        f.write("#EXTM3U\n")
-        for item, titulo in lista:
-            if titulo:
-                f.write("#EXTINF:-1,%s\n" % titulo.replace("\n", " "))
-            f.write(item + "\n")
-    return ruta
+    """Prepara la programación del Canal Retro (series, grilla, tandas, cortinas) para
+    canal.lua, que decide en vivo qué va según la hora. Devuelve la ruta, o None si no hay
+    programas."""
+    from . import grilla
+    return grilla.armar_catalogo(opciones, os.path.join(config.CACHE_DIR, "canal.json"))
 
 
 def orden_canal(opciones, lista, color="&HFFFFFF&"):
@@ -125,12 +76,11 @@ def orden_canal(opciones, lista, color="&HFFFFFF&"):
         "si" if config.opcion_si(opciones, "CANAL_EMPEZADO") else "no",
         color,
         "si" if config.opcion_si(opciones, "CANAL_PRESENTACION") else "no",
-    )
+    ) + ",canal-catalogo=" + lista
     return mpv_base() + [
         "--script=" + os.path.join(config.SISTEMA_DIR, "canal.lua"),
         "--script-opts=" + opts,
-        "--loop-playlist=inf",
-        "--playlist=" + lista,
+        "--idle=yes", "--force-window=yes",   # canal.lua va cargando los programas
     ]
 
 
@@ -186,11 +136,11 @@ def control_videos(boton):
 def control_canal(boton):
     acciones = {
         "b": ("quit",),
-        "right": ("playlist-next",), "r": ("playlist-next",),
+        "right": ("script-message", "canal-zapping"), "r": ("script-message", "canal-zapping"),
         "up": ("add", "volume", "5"), "down": ("add", "volume", "-5"),
-        "a": ("show-text", "${media-title}", "3000"),
+        "a": ("script-message", "canal-que-dan"),
         "start": ("cycle", "pause"),
-        "l": ("show-text", "${media-title}", "3000"),
+        "l": ("script-message", "canal-que-dan"),
         "inicio": ("quit",),
     }
     if boton in acciones:

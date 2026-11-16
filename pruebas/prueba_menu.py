@@ -361,32 +361,96 @@ def probar_episodios():
 
 
 def probar_canal():
-    """Canal Retro: cada programa lleva "Serie — Episodio" y las cortinas van entre programas."""
-    from televieja import reproducir
+    """Canal Retro con grilla: series, orden de capítulos, bloques por día y hora."""
+    import datetime
+    from televieja import grilla, reproducir
     raiz = os.path.join(TMP, "canal-raiz")
-    tocar(os.path.join(raiz, "Canal", "Programas", "+One Piece", "1. Arco", "OPLAT-44-1192.mp4"))
-    tocar(os.path.join(raiz, "Canal", "Programas", "Los Simpsons", "T1", "Capitulo 3.mkv"))
-    tocar(os.path.join(raiz, "Canal", "Programas", "El Zorro 01.mp4"))
+    # un pack con varias series adentro, una serie con arcos y un video suelto
+    tocar(os.path.join(raiz, "Videos", "SERI3S ANIMAD4S RETRO", "Los Picapiedras", "Cap 2.mp4"))
+    tocar(os.path.join(raiz, "Videos", "SERI3S ANIMAD4S RETRO", "Los Picapiedras", "Cap 1.mp4"))
+    tocar(os.path.join(raiz, "Videos", "SERI3S ANIMAD4S RETRO", "Scooby-Doo", "Episodio 1.mp4"))
+    tocar(os.path.join(raiz, "Videos", "+One Piece", "1. Sagas", "2. Arco B", "OPLAT-10-1.mp4"))
+    tocar(os.path.join(raiz, "Videos", "+One Piece", "1. Sagas", "1. Arco A", "OPLAT-2-1.mp4"))
+    tocar(os.path.join(raiz, "Videos", "+One Piece", "1. Sagas", "1. Arco A", "OP.LAT-1-720P.mp4"))
     tocar(os.path.join(raiz, "Canal", "Tandas", "Coca 1991.mp4"))
     viejo = config.raices
     config.raices = lambda: [raiz]
     try:
+        series = grilla.carpetas_de_series()
+        assert sorted(series) == ["Los Picapiedras", "One Piece", "Scooby-Doo"], sorted(series)
+        eps = [t for _, t in grilla.episodios(series["One Piece"])]
+        assert eps == ["Episodio 1", "Episodio 2", "Episodio 10"], eps
+        # bloques: el domingo a las 15 manda la maratón; el lunes a las 15, la tarde
+        g = {"bloques": [
+            {"nombre": "Tarde", "dias": "todos", "hora": "13:00", "tipo": "mezcla", "series": []},
+            {"nombre": "Noche", "dias": "todos", "hora": "20:00", "tipo": "mezcla", "series": []},
+            {"nombre": "Maratón", "dias": "dom", "hora": "13:00", "tipo": "maraton",
+             "series": ["Scooby-Doo"]}]}
+        domingo = datetime.datetime(2026, 11, 15, 15, 0)
+        assert grilla.bloque_en(g, domingo) == 2
+        assert grilla.bloque_en(g, domingo + datetime.timedelta(days=1)) == 0
+        assert grilla.bloque_en(g, datetime.datetime(2026, 11, 16, 3, 0)) == 1  # sigue la noche
+        assert [h for h, _ in grilla.guia_del_dia(g, 6)] == ["13:00", "20:00"]
+        listos = grilla.resolver(g, {s: [] for s in series})
+        assert listos[2]["series"] == ["Scooby-Doo"] and len(listos[0]["series"]) == 3, listos
+        # maratón sin serie elegida: una serie entera (cambia cada semana)
+        g["bloques"][2]["series"] = []
+        assert len(grilla.resolver(g, {s: [] for s in series})[2]["series"]) == 1
+        # el catálogo para canal.lua
         opciones = dict(config.OPCIONES_POR_DEFECTO, TANDAS_POR_CORTE="1")
-        lista = open(reproducir.armar_canal(opciones), encoding="utf-8").read().splitlines()
-        titulos = sorted(l.split(",", 1)[1] for l in lista if l.startswith("#EXTINF"))
-        assert titulos == ["El Zorro 01", "Los Simpsons — Capitulo 3", "One Piece — Episodio 44"], titulos
-        archivos = [l for l in lista if l and not l.startswith("#")]
-        assert len(archivos) == 6 and sum("/Tandas/" in a for a in archivos) == 3, archivos
-        # con cortinas propias: una después de cada corte
-        tocar(os.path.join(raiz, "Canal", "Cortinas", "Cartoon 1998.mp4"))
-        lista = open(reproducir.armar_canal(opciones), encoding="utf-8").read().splitlines()
-        archivos = [l for l in lista if l and not l.startswith("#")]
-        assert len(archivos) == 9 and sum("/Cortinas/" in a for a in archivos) == 3, archivos
-        assert "/Cortinas/" in archivos[2], archivos     # programa, tanda, cortina, programa...
-        orden = reproducir.orden_canal(opciones, "x.m3u")
-        assert any("canal-presentacion=si" in o for o in orden), orden
+        ruta = reproducir.armar_canal(opciones)
+        cat = json.load(open(ruta, encoding="utf-8"))
+        assert cat["series"]["One Piece"][0]["titulo"] == "Episodio 1", cat["series"]["One Piece"]
+        assert len(cat["tandas"]) == 1 and cat["por_corte"] == 1 and cat["semana"]
+        orden = reproducir.orden_canal(opciones, ruta)
+        assert "--idle=yes" in orden and any("canal-catalogo=" + ruta in o for o in orden), orden
     finally:
         config.raices = viejo
+
+
+def probar_grilla_menu(app, paso, foto):
+    """Opciones > Grilla del canal: ver bloques, cambiar hora/tipo y elegir la serie."""
+    from televieja import grilla
+    while len(app.pila) > 1:
+        app.sacar()
+    viejo = grilla.carpetas_de_series
+    grilla.carpetas_de_series = lambda: {"One Piece": [], "Scooby-Doo": [], "Los Picapiedras": []}
+    try:
+        if os.path.exists(grilla.ARCHIVO):
+            os.remove(grilla.ARCHIVO)
+        app.poner(pantallas.GrillaCanal())
+        textos = [it.texto for it in app.actual.items]
+        assert "Domingos 10:00  Maratón del domingo" in textos, textos
+        assert sum(it.extra == "AL AIRE" for it in app.actual.items) == 1
+        foto("28-grilla")
+        app.actual.sel = textos.index("Domingos 10:00  Maratón del domingo")
+        paso("a")
+        editor = app.actual
+        assert isinstance(editor, pantallas.EditarBloque)
+        editor.sel = 2                       # Empieza: 10:00
+        paso("right", "right")
+        assert editor.bloque["hora"] == "11:00", editor.bloque
+        editor.sel = 4                       # Serie: ...
+        paso("a")
+        fin = time.time() + 5
+        while time.time() < fin and not isinstance(app.actual, pantallas.ElegirSeries):
+            app.vuelta(0.05)
+            time.sleep(0.02)
+        assert isinstance(app.actual, pantallas.ElegirSeries)
+        app.actual.sel = [it.texto for it in app.actual.items].index("One Piece")
+        paso("a")                            # maratón: elige una y vuelve
+        assert app.actual is editor and editor.bloque["series"] == ["One Piece"]
+        foto("29-grilla-bloque")
+        guardada = grilla.cargar()
+        bloque = [b for b in guardada["bloques"] if b["nombre"] == "Maratón del domingo"][0]
+        assert bloque["hora"] == "11:00" and bloque["series"] == ["One Piece"], bloque
+        paso("b")
+        assert isinstance(app.actual, pantallas.GrillaCanal)
+        assert any(it.texto == "Domingos 11:00  Maratón del domingo" for it in app.actual.items)
+    finally:
+        grilla.carpetas_de_series = viejo
+        while len(app.pila) > 1:
+            app.sacar()
 
 
 def probar_wine():
@@ -834,6 +898,7 @@ game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 c
     probar_mega(app, paso, foto)
     probar_wifi(app, paso, foto)
     probar_bluetooth(app, paso, foto)
+    probar_grilla_menu(app, paso, foto)
     app.poner(pantallas.Calibrar("Encontré un joystick nuevo: vamos a configurarlo."))
     foto("13-calibrar")
     paso("b")  # (Calibrar ignora botones traducidos; sacamos a mano)
