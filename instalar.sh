@@ -60,6 +60,7 @@ PAQUETES=(
     rsync ntfs-3g exfatprogs curl unzip sudo
     network-manager iw systemd-timesyncd util-linux-extra
     bluez bluez-alsa-utils libasound2-plugin-bluez
+    tlp
     firmware-misc-nonfree firmware-realtek firmware-iwlwifi firmware-atheros
     firmware-brcm80211 firmware-sof-signed firmware-intel-sound
 )
@@ -153,7 +154,7 @@ fi
 verde "==> 4/7 Creando carpetas en $CASA/TeleVieja..."
 R="$CASA/TeleVieja"
 sudo -u "$USUARIO" mkdir -p \
-    "$R/Videos" "$R/Canal/Programas" "$R/Canal/Tandas" \
+    "$R/Videos" "$R/Canal/Programas" "$R/Canal/Tandas" "$R/Canal/Cortinas" \
     "$R/Juegos/Family" "$R/Juegos/SuperNintendo" "$R/Juegos/Sega" \
     "$R/Juegos/GameBoy" "$R/Juegos/GameBoyAdvance" "$R/Juegos/NeoGeo" "$R/Juegos/PlayStation" \
     "$R/Juegos/Nintendo64" "$R/Juegos/Arcade" "$R/Juegos/PC" \
@@ -340,12 +341,38 @@ else
     rm -f /etc/X11/xorg.conf.d/20-televieja-intel.conf
 fi
 
-verde "==> 7/7 Arranque silencioso..."
+verde "==> 7/7 Arranque rápido y batería..."
 if [ -f /etc/default/grub ]; then
-    sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=2/' /etc/default/grub
+    # Sin esperar en el menú de arranque (si hace falta, apretar Esc al prender lo muestra)
+    sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=1/' /etc/default/grub
+    if grep -q '^GRUB_TIMEOUT_STYLE=' /etc/default/grub; then
+        sed -i 's/^GRUB_TIMEOUT_STYLE=.*/GRUB_TIMEOUT_STYLE=hidden/' /etc/default/grub
+    else
+        echo 'GRUB_TIMEOUT_STYLE=hidden' >> /etc/default/grub
+    fi
     sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3 vt.global_cursor_default=0"/' /etc/default/grub
     update-grub 2>/dev/null || true
 fi
+# Cosas que arrancan solas y no hacen falta (en esta netbook cada una demora el inicio
+# o se pone a trabajar el disco justo cuando estás mirando algo)
+systemctl disable --now NetworkManager-wait-online.service apt-daily.timer \
+    apt-daily-upgrade.timer man-db.timer e2scrub_all.timer >/dev/null 2>&1 || true
+# El menú ya compilado: así no se recompila en cada arranque
+python3 -m compileall -q "$APP/televieja" "$APP/bin" >/dev/null 2>&1 || true
+# Batería (TLP), sin las partes que molestan acá: el WiFi se cortaba con ahorro de
+# energía, los joysticks y discos USB no tienen que dormirse, el sonido hace "clic"
+# al despertar y el disco no tiene que frenar en medio de un video.
+mkdir -p /etc/tlp.d
+cat > /etc/tlp.d/90-televieja.conf <<'EOF'
+WIFI_PWR_ON_AC=off
+WIFI_PWR_ON_BAT=off
+USB_AUTOSUSPEND=0
+SOUND_POWER_SAVE_ON_AC=0
+SOUND_POWER_SAVE_ON_BAT=0
+DISK_APM_LEVEL_ON_BAT="192 192"
+RUNTIME_PM_DRIVER_DENYLIST="mei_me nouveau radeon psmouse rtl8192se r8169"
+EOF
+systemctl enable --now tlp >/dev/null 2>&1 || true
 
 echo
 if [ ${#FALTARON[@]} -gt 0 ]; then

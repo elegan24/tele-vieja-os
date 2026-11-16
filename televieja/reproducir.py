@@ -60,14 +60,39 @@ def orden_radio(archivos):
     ] + list(archivos)
 
 
+def _programas_con_serie(partes):
+    """[(ruta, título)] de todas las raíces. El título es "Serie — Episodio": la serie es
+    la primera carpeta adentro de Programas (o Videos)."""
+    salida = []
+    for r in config.raices():
+        base = os.path.join(r, *partes)
+        for ruta in config.listar_archivos(base, config.EXT_VIDEO):
+            rel = os.path.relpath(ruta, base).split(os.sep)
+            archivo = os.path.basename(ruta)
+            episodio = config.etiqueta_episodio(archivo) or config.nombre_lindo(archivo)
+            if len(rel) > 1:
+                serie = rel[0]
+                for basura in ("+", "-", "_"):
+                    serie = serie.strip(basura + " ")
+                titulo = "%s — %s" % (serie or rel[0], episodio)
+            else:
+                titulo = config.nombre_lindo(archivo)
+            salida.append((ruta, titulo))
+    return salida
+
+
 def armar_canal(opciones):
-    """Mezcla programas y tandas como un canal de aire. Devuelve la ruta de la lista."""
-    programas = config.listar_en_todas(("Canal", "Programas"), config.EXT_VIDEO)
+    """Mezcla programas y tandas como un canal de aire. Devuelve la ruta de la lista.
+
+    Entre programa y programa van las tandas y, si hay, una "cortina" (presentación
+    del canal) de Canal/Cortinas. Si no hay cortinas, canal.lua dibuja una."""
+    programas = _programas_con_serie(("Canal", "Programas"))
     if not programas:
-        programas = config.listar_en_todas(("Videos",), config.EXT_VIDEO)
+        programas = _programas_con_serie(("Videos",))
     if not programas:
         return None
     tandas = config.listar_en_todas(("Canal", "Tandas"), config.EXT_VIDEO)
+    cortinas = config.listar_en_todas(("Canal", "Cortinas"), config.EXT_VIDEO)
     try:
         por_corte = max(0, int(opciones.get("TANDAS_POR_CORTE", "2")))
     except ValueError:
@@ -77,23 +102,29 @@ def armar_canal(opciones):
     for p in programas:
         lista.append(p)
         if tandas and por_corte:
-            lista.extend(random.sample(tandas, min(por_corte, len(tandas))))
+            lista.extend((t, None) for t in random.sample(tandas, min(por_corte, len(tandas))))
+        if cortinas:
+            lista.append((random.choice(cortinas), None))
     os.makedirs(config.CACHE_DIR, exist_ok=True)
     ruta = os.path.join(config.CACHE_DIR, "canal.m3u")
     with open(ruta, "w", encoding="utf-8") as f:
         f.write("#EXTM3U\n")
-        for item in lista:
+        for item, titulo in lista:
+            if titulo:
+                f.write("#EXTINF:-1,%s\n" % titulo.replace("\n", " "))
             f.write(item + "\n")
     return ruta
 
 
 def orden_canal(opciones, lista, color="&HFFFFFF&"):
     nombre = opciones.get("NOMBRE_CANAL", "FRECUENCIA 99").replace(",", " ")
-    opts = "canal-nombre=%s,canal-reloj=%s,canal-empezado=%s,canal-color=%s" % (
+    opts = ("canal-nombre=%s,canal-reloj=%s,canal-empezado=%s,canal-color=%s,"
+            "canal-presentacion=%s") % (
         nombre,
         "si" if config.opcion_si(opciones, "CANAL_RELOJ") else "no",
         "si" if config.opcion_si(opciones, "CANAL_EMPEZADO") else "no",
         color,
+        "si" if config.opcion_si(opciones, "CANAL_PRESENTACION") else "no",
     )
     return mpv_base() + [
         "--script=" + os.path.join(config.SISTEMA_DIR, "canal.lua"),

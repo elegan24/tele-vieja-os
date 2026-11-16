@@ -154,7 +154,8 @@ TeleVieja/
 ├── Videos/                 películas y series (podés hacer subcarpetas por serie)
 ├── Canal/
 │   ├── Programas/          lo que pasa el Canal Retro (si está vacía, usa Videos/)
-│   └── Tandas/             publicidades viejas que van entre programa y programa
+│   ├── Tandas/             publicidades viejas que van entre programa y programa
+│   └── Cortinas/           presentaciones del canal entre programas (opcional)
 ├── Juegos/
 │   ├── Family/             .nes
 │   ├── SuperNintendo/      .smc .sfc
@@ -453,6 +454,12 @@ Mezcla tus programas con las tandas y los pasa sin parar, con el nombre del cana
 hora en la esquina. Al entrar agarrás un programa empezado, como cuando prendías la tele.
 Derecha o R cambia de programa · A muestra qué estás viendo · **B sale**.
 
+Cuando termina un programa aparece una **presentación** al estilo Cartoon Network (tablero
+de damas y "A continuación: *la serie que sigue*"); después las tandas y el próximo
+programa, que arranca desde el principio. Si tenés presentaciones de verdad (cortinas o
+"bumpers" de canales viejos), ponelas en `TeleVieja/Canal/Cortinas` y se usan esas.
+La serie es la primera carpeta adentro de `Programas` (o de `Videos`).
+
 ### Juegos
 
 **SELECT + START: salir** · SELECT + R: guardar partida · SELECT + L: cargar partida ·
@@ -530,6 +537,7 @@ En `~/.config/televieja/opciones.conf` (desde *Opciones → Salir a la terminal*
 | `NOMBRE_CANAL` | El nombre que aparece arriba y en la esquina del canal |
 | `CANAL_RELOJ` | `si`/`no`: hora en el Canal Retro |
 | `CANAL_EMPEZADO` | `si`/`no`: agarrar el primer programa empezado |
+| `CANAL_PRESENTACION` | `si`/`no`: presentación "A continuación" entre programas |
 | `TANDAS_POR_CORTE` | Cuántas publicidades entre programas |
 | `ARRANCAR_EN` | `menu` o `canal` (¡prendés y ya está pasando algo!) |
 | `RESOLUCION` | `640x480` (si el conversor no la toma: `800x600`) |

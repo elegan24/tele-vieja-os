@@ -38,6 +38,7 @@ OPCIONES_POR_DEFECTO = {
     "NOMBRE_CANAL": "FRECUENCIA 99",
     "CANAL_RELOJ": "si",
     "CANAL_EMPEZADO": "si",
+    "CANAL_PRESENTACION": "si",
     "TANDAS_POR_CORTE": "2",
     "ARRANCAR_EN": "menu",
     "SONIDOS_MENU": "si",

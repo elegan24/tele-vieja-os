@@ -360,6 +360,35 @@ def probar_episodios():
         ["Rocky 2.mp4", "Titanic.mp4", "Volver al futuro.avi"]
 
 
+def probar_canal():
+    """Canal Retro: cada programa lleva "Serie — Episodio" y las cortinas van entre programas."""
+    from televieja import reproducir
+    raiz = os.path.join(TMP, "canal-raiz")
+    tocar(os.path.join(raiz, "Canal", "Programas", "+One Piece", "1. Arco", "OPLAT-44-1192.mp4"))
+    tocar(os.path.join(raiz, "Canal", "Programas", "Los Simpsons", "T1", "Capitulo 3.mkv"))
+    tocar(os.path.join(raiz, "Canal", "Programas", "El Zorro 01.mp4"))
+    tocar(os.path.join(raiz, "Canal", "Tandas", "Coca 1991.mp4"))
+    viejo = config.raices
+    config.raices = lambda: [raiz]
+    try:
+        opciones = dict(config.OPCIONES_POR_DEFECTO, TANDAS_POR_CORTE="1")
+        lista = open(reproducir.armar_canal(opciones), encoding="utf-8").read().splitlines()
+        titulos = sorted(l.split(",", 1)[1] for l in lista if l.startswith("#EXTINF"))
+        assert titulos == ["El Zorro 01", "Los Simpsons — Capitulo 3", "One Piece — Episodio 44"], titulos
+        archivos = [l for l in lista if l and not l.startswith("#")]
+        assert len(archivos) == 6 and sum("/Tandas/" in a for a in archivos) == 3, archivos
+        # con cortinas propias: una después de cada corte
+        tocar(os.path.join(raiz, "Canal", "Cortinas", "Cartoon 1998.mp4"))
+        lista = open(reproducir.armar_canal(opciones), encoding="utf-8").read().splitlines()
+        archivos = [l for l in lista if l and not l.startswith("#")]
+        assert len(archivos) == 9 and sum("/Cortinas/" in a for a in archivos) == 3, archivos
+        assert "/Cortinas/" in archivos[2], archivos     # programa, tanda, cortina, programa...
+        orden = reproducir.orden_canal(opciones, "x.m3u")
+        assert any("canal-presentacion=si" in o for o in orden), orden
+    finally:
+        config.raices = viejo
+
+
 def probar_wine():
     from televieja import wine
     pc = os.path.join(config.RAIZ, "Juegos", "PC")
@@ -639,6 +668,7 @@ game (\n\tname "Marvel Vs. Capcom: Clash of Super Heroes (Europe 980123)"\n\trom
 game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 crc 0 )\n)\n''')
     config.ARCHIVO_NOMBRES_ARCADE = dat
     probar_episodios()
+    probar_canal()
     probar_wine()
     probar_glxinfo()
     app = menu.App()
