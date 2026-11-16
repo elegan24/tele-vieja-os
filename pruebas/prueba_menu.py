@@ -355,6 +355,14 @@ def probar_episodios():
     assert config.etiqueta_episodio("OPLAT-44-1192.mp4") == "Episodio 44"
     assert config.etiqueta_episodio("Volver al futuro.avi") is None
     assert config.etiqueta_episodio("Los Simpsons S02E05.mkv") is None
+    # nombres "sucios" de descargas (como los del prototipo del motor de continuidad)
+    sucio = "Copia de Steven.Spielberg.Presents.Animaniacs.S01E05.Taming.Of.The.Screwy.1080p.HMAX.WEB-DL.DD2.0.mp4"
+    assert config.nombre_lindo(sucio) == "Steven Spielberg Presents Animaniacs S01E05 Taming Of The Screwy"
+    assert config.titulo_episodio(sucio) == "T1 E5 · Taming Of The Screwy"
+    assert config.titulo_episodio("Get Smart S01E01 (Mr. Big).ia.mp4") == "T1 E1 · Mr. Big"
+    assert config.titulo_episodio("Los Simpsons 3x07 - Lisa la vegetariana.mkv") == "T3 E7 · Lisa la vegetariana"
+    assert config.nombre_lindo("Dr. No (1962).mkv") == "Dr. No (1962)"
+    assert config.nombre_lindo("Copia de Copia de El Chavo 001.mp4") == "El Chavo 001"
     # películas sin número: por nombre
     assert config.ordenar_episodios(["Volver al futuro.avi", "Titanic.mp4", "Rocky 2.mp4"]) == \
         ["Rocky 2.mp4", "Titanic.mp4", "Volver al futuro.avi"]

@@ -411,7 +411,9 @@ class Explorador(Lista):
             else:
                 accion = (lambda app, i=i: self.reproducir(app, i))
             nombre = os.path.basename(a)
-            texto = (por_episodio and config.etiqueta_episodio(nombre)) or config.nombre_lindo(nombre)
+            texto = ((por_episodio and config.etiqueta_episodio(nombre))
+                     or (config.titulo_episodio(nombre) if self.tipo == "video"
+                         else config.nombre_lindo(nombre)))
             self.items.append(Item(texto, accion, icono=icono_archivo, extra=extra))
         for i, im in enumerate(imagenes):  # fondos de pantalla, pósters, fotos...
             self.items.append(Item(os.path.splitext(os.path.basename(im))[0],

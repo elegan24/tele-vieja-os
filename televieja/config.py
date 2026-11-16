@@ -421,11 +421,41 @@ def etiqueta_episodio(nombre_archivo):
     return "Episodio %d" % n
 
 
+# Lo que agregan los que suben videos y no es parte del nombre ("1080p.HMAX.WEB-DL.DD2.0...")
+_ETIQUETAS_DE_COPIA = re.compile(
+    r"[\s._-]*\b(2160p|1080p|720p|576p|480p|360p|web[-. ]?dl|webrip|bluray|bdrip|brrip|"
+    r"dvdrip|hdtv|hmax|amzn|dsnp|atvp|ddp?\d(?:[. ]\d)?|ddp|aac\d?(?:[. ]\d)?|ac3|"
+    r"[xh][. ]?26[45]|hevc|10bit|proper|repack)\b.*$", re.I)
+_COPIA_DE = re.compile(r"^(?:(?:copia de|copy of)\s+)+", re.I)
+_TEMPORADA_EPISODIO = re.compile(
+    r"\b(?:s(\d{1,2})\s*e(\d{1,4})|(\d{1,2})x(\d{2,4}))\b\s*[-–—:.]?\s*(.*)$", re.I)
+
+
 def nombre_lindo(nombre_archivo):
-    base = os.path.splitext(nombre_archivo)[0]
-    if " " not in base:
+    """ "Copia de Show.S01E05.Titulo.1080p.HMAX.WEB-DL.mp4" -> "Show S01E05 Titulo"."""
+    base = os.path.splitext(os.path.basename(nombre_archivo))[0]
+    base = re.sub(r"(\.ia|[._]512kb)$", "", base, flags=re.I)  # versiones de archive.org
+    base = _COPIA_DE.sub("", base.strip())
+    if " " not in base or base.count(".") >= 3:   # puntos o guiones bajos en vez de espacios
         base = base.replace("_", " ").replace(".", " ")
-    return base.strip() or nombre_archivo
+    base = _ETIQUETAS_DE_COPIA.sub("", base)
+    base = re.sub(r"\s+", " ", base).strip(" -_.")
+    return base or os.path.basename(nombre_archivo)
+
+
+def titulo_episodio(nombre_archivo):
+    """Para listas y carteles: "T1 E5 · Taming Of The Screwy", "Episodio 44" o el nombre lindo."""
+    limpio = nombre_lindo(nombre_archivo)
+    m = _TEMPORADA_EPISODIO.search(limpio)
+    if m:
+        temporada = int(m.group(1) or m.group(3))
+        episodio = int(m.group(2) or m.group(4))
+        resto = m.group(5).strip(" -–—")
+        if resto.startswith("(") and resto.endswith(")"):
+            resto = resto[1:-1].strip()
+        etiqueta = "T%d E%d" % (temporada, episodio)
+        return "%s · %s" % (etiqueta, resto) if resto else etiqueta
+    return etiqueta_episodio(nombre_archivo) or limpio
 
 
 def listar_archivos(carpeta, extensiones, recursivo=True):

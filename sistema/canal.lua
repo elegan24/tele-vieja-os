@@ -23,9 +23,11 @@ local cat = nil           -- la programación
 local estado = { punteros = {} }  -- por qué capítulo va cada serie
 local info = {}           -- ruta -> { tipo, serie, episodio, indice, bloque }
 local primero = true
-local termino_programa = false
 local actual = nil        -- info del archivo que se está viendo
 local ultima_serie = nil
+local ultimo_bloque = nil
+local cola = {}           -- lo que viene después de lo que se está viendo, en orden
+local carta_activa = false
 local timer_cartel, timer_carta = nil, nil
 
 math.randomseed(os.time())
@@ -107,6 +109,7 @@ end
 -- para la hora en que va a empezar, por si cambia el bloque).
 local function encolar_lo_que_sigue()
     mp.commandv("playlist-clear")  -- deja solo lo que se está viendo
+    cola = {}
     local dur = mp.get_property_number("duration", 1800)
     local pos = mp.get_property_number("time-pos", 0)
     local cuando = os.time() + math.max(0, dur - pos) + 30 * cat.por_corte
@@ -114,15 +117,19 @@ local function encolar_lo_que_sigue()
         for _ = 1, cat.por_corte do
             local t = al_azar(cat.tandas)
             info[t] = { tipo = "tanda" }
+            cola[#cola + 1] = info[t]
             mp.commandv("loadfile", t, "append")
         end
     end
     if #cat.cortinas > 0 then
         local c = al_azar(cat.cortinas)
         info[c] = { tipo = "cortina" }
+        cola[#cola + 1] = info[c]
         mp.commandv("loadfile", c, "append")
     end
-    mp.commandv("loadfile", elegir_programa(cuando), "append")
+    local prog = elegir_programa(cuando)
+    cola[#cola + 1] = info[prog]
+    mp.commandv("loadfile", prog, "append")
 end
 
 -- --- en pantalla ------------------------------------------------------------------
@@ -158,15 +165,54 @@ local function dibujar_logo()
     logo:update()
 end
 
-local function mostrar_titulo()
-    if not actual or actual.tipo ~= "programa" then return end
-    cartel.res_x, cartel.res_y = W, H
-    cartel.data = string.format(
-        "{\\an1\\pos(%d,%d)\\fs22\\b1\\bord2\\1c&H40D4FF&\\3c&H101010&}AHORA: {\\1c&HFFFFFF&}%s",
-        MX, H - MY, limpiar(actual.serie .. " — " .. actual.episodio))
+-- Recorta sin partir una letra con tilde (UTF-8)
+local function recortar(texto, n)
+    if #texto <= n then return texto end
+    local corte = n
+    while corte > 0 and (texto:byte(corte + 1) or 0) >= 128 and (texto:byte(corte + 1) or 0) < 192 do
+        corte = corte - 1
+    end
+    return texto:sub(1, corte) .. "…"
+end
+
+local function avance(t, desde, hasta)  -- 0..1 con frenado suave al final
+    local x = math.max(0, math.min(1, (t - desde) / (hasta - desde)))
+    return 1 - (1 - x) * (1 - x)
+end
+
+-- Zócalo "AHORA": recuadro del color del canal + título, entra deslizando y dura 6 segundos
+local function dibujar_zocalo(t, texto)
+    local entra = avance(t, 0, 0.35)
+    local y = H - MY - 26 + math.floor(18 * (1 - entra))
+    local alfa = string.format("\\alpha&H%02X&", math.floor(255 * (1 - entra)))
+    cartel.data = table.concat({
+        string.format("{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c%s%s\\p1}m 0 0 l 86 0 86 26 0 26{\\p0}",
+                      MX, y, opts.color, alfa),
+        string.format("{\\an5\\pos(%d,%d)\\fs18\\b1\\bord0\\shad0\\1c&H141414&%s}AHORA",
+                      MX + 43, y + 13, alfa),
+        string.format("{\\an4\\pos(%d,%d)\\fs21\\b1\\bord2\\shad1\\1c&HFFFFFF&\\3c&H000000&%s}%s",
+                      MX + 96, y + 13, alfa, texto),
+    }, "\n")
     cartel:update()
+end
+
+local function mostrar_titulo()
+    if not actual or actual.tipo ~= "programa" or not actual.serie then return end
+    local texto = recortar(limpiar(actual.serie .. " — " .. actual.episodio), 48)
+    cartel.res_x, cartel.res_y = W, H
     if timer_cartel then timer_cartel:kill() end
-    timer_cartel = mp.add_timeout(5, function() cartel:remove() end)
+    local inicio = mp.get_time()
+    dibujar_zocalo(0, texto)
+    timer_cartel = mp.add_periodic_timer(1 / 15, function()
+        local t = mp.get_time() - inicio
+        if t >= 6 then
+            timer_cartel:kill()
+            timer_cartel = nil
+            cartel:remove()
+        elseif t <= 0.4 then
+            dibujar_zocalo(t, texto)
+        end
+    end)
 end
 
 -- Cortina "A continuación", como las de Cartoon Network: tablero de damas que camina y
@@ -189,14 +235,9 @@ local function tablero(color, inicio, corrimiento)
            table.concat(trazos) .. "{\\p0}"
 end
 
-local function avance(t, desde, hasta)  -- 0..1 con frenado suave al final
-    local x = math.max(0, math.min(1, (t - desde) / (hasta - desde)))
-    return 1 - (1 - x) * (1 - x)
-end
-
 local function dibujar_carta(t, encabezado, serie, episodio)
-    local tam = 46
-    if #serie > 26 then tam = 28 elseif #serie > 18 then tam = 36 end
+    local tam = 44
+    if #serie > 24 then tam = 26 elseif #serie > 16 then tam = 34 end
     local corrimiento = -(math.floor(t / DURACION * 160) % 160)
     local franja = math.floor(-640 + 640 * avance(t, 0, 0.35))
     local etiqueta = math.floor(-400 + (MX + 10 + 400) * avance(t, 0.15, 0.5))
@@ -219,27 +260,16 @@ local function dibujar_carta(t, encabezado, serie, episodio)
     carta:update()
 end
 
--- El próximo programa en la lista (desde el archivo que empieza)
-local function proximo_programa()
-    local pos = mp.get_property_number("playlist-pos", 0)
-    local total = mp.get_property_number("playlist-count", 0)
-    for i = pos, total - 1 do
-        local i_info = info[mp.get_property("playlist/" .. i .. "/filename", "")]
-        if i_info and i_info.tipo == "programa" then return i_info end
-    end
-    return nil
-end
-
-local function presentar(bloque_anterior)
-    local prox = proximo_programa()
-    if not prox then return end
+-- El bumper arranca apenas termina lo anterior y tapa la carga del capítulo, que
+-- espera en pausa abajo: nunca queda la pantalla en negro. Al irse, el zócalo "AHORA".
+local function presentar(prox)
     local encabezado = "A CONTINUACIÓN"
-    if prox.bloque ~= bloque_anterior then
+    if ultimo_bloque and prox.bloque ~= ultimo_bloque then
         encabezado = "COMIENZA: " .. mayusculas(limpiar(prox.bloque))
     end
-    local serie, episodio = limpiar(prox.serie), limpiar(prox.episodio)
+    local serie, episodio = mayusculas(limpiar(prox.serie)), limpiar(prox.episodio)
     carta.res_x, carta.res_y = W, H
-    mp.set_property_bool("pause", true)
+    carta_activa = true
     if timer_carta then timer_carta:kill() end
     local inicio = mp.get_time()
     dibujar_carta(0, encabezado, serie, episodio)
@@ -248,8 +278,10 @@ local function presentar(bloque_anterior)
         if t >= DURACION then
             timer_carta:kill()
             timer_carta = nil
+            carta_activa = false
             carta:remove()
             mp.set_property_bool("pause", false)
+            mostrar_titulo()
         else
             dibujar_carta(t, encabezado, serie, episodio)
         end
@@ -258,18 +290,21 @@ end
 
 -- --- eventos ----------------------------------------------------------------------
 mp.register_event("end-file", function(evento)
-    -- Solo si el programa terminó solo (no si hiciste zapping)
-    termino_programa = evento.reason == "eof" and actual ~= nil and actual.tipo == "programa"
+    -- Terminó solo (no zapping) y lo que sigue es un programa: bumper, salvo que lo que
+    -- terminó haya sido una cortina propia (ya hizo de presentación).
+    local prox = cola[1]
+    if evento.reason == "eof" and not primero and opts.presentacion == "si" and prox
+       and prox.tipo == "programa" and actual and actual.tipo ~= "cortina" then
+        presentar(prox)
+    end
 end)
 
 mp.register_event("file-loaded", function()
     local ruta = mp.get_property("path", "")
-    local anterior = actual
+    if #cola > 0 then table.remove(cola, 1) end
     actual = info[ruta] or { tipo = tipo_de(ruta) }
-    -- Terminó un programa: cortina "A continuación" (si no hay cortinas propias)
-    if not primero and termino_programa and opts.presentacion == "si"
-       and #cat.cortinas == 0 then
-        presentar(anterior and anterior.bloque)
+    if carta_activa then
+        mp.set_property_bool("pause", true)  -- espera abajo del bumper
     end
     if actual.tipo == "programa" and actual.serie then
         -- La primera vez agarrás el programa empezado, como al prender la tele.
@@ -281,13 +316,13 @@ mp.register_event("file-loaded", function()
         end
         estado.punteros[actual.serie] = actual.indice + 1
         ultima_serie = actual.serie
+        ultimo_bloque = actual.bloque
         guardar_estado()
         encolar_lo_que_sigue()
+        if not carta_activa then mostrar_titulo() end
     end
-    termino_programa = false
     primero = false
     dibujar_logo()
-    mostrar_titulo()
 end)
 
 mp.add_periodic_timer(10, dibujar_logo)
@@ -301,6 +336,8 @@ local function zapping()
         carta:remove()
         mp.set_property_bool("pause", false)
     end
+    carta_activa = false
+    cola = {}
     mp.commandv("loadfile", elegir_programa(os.time()), "replace")
 end
 local function que_dan()

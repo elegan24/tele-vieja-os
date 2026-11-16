@@ -460,10 +460,14 @@ viendo · **B sale**.
   capítulo.
 - **Cada serie sigue donde quedó:** si hoy pasó el capítulo 44 de One Piece, la próxima
   vez que aparezca va el 45. Al terminar la serie, vuelve a empezar.
-- **Continuidad:** al terminar un programa sale una cortina "A CONTINUACIÓN" (o
-  "COMIENZA: MARATÓN DEL DOMINGO" si cambia el bloque), después las tandas y el
-  programa siguiente. Si tenés cortinas o bumpers de verdad, ponelos en
-  `TeleVieja/Canal/Cortinas` y se usan esos.
+- **Continuidad:** programa → tandas → bumper "A CONTINUACIÓN" (o "COMIENZA: MARATÓN
+  DEL DOMINGO" si cambia el bloque) → programa. El bumper tapa la carga del capítulo
+  siguiente, que espera en pausa abajo: la pantalla nunca queda en negro. Cuando
+  arranca, aparece el zócalo **AHORA** con la serie y el capítulo. Si tenés cortinas o
+  bumpers de verdad, ponelos en `TeleVieja/Canal/Cortinas` y se usan esos.
+- **Nombres limpios:** "Copia de Show.S01E05.Titulo.1080p.HMAX.WEB-DL.mp4" se ve como
+  "T1 E5 · Titulo" (sin "Copia de", calidad ni etiquetas de quien lo subió), en el
+  canal y en Videos.
 - **Armar la grilla:** *Opciones → Grilla del canal*. Cada bloque tiene nombre, días
   (todos, lunes a viernes, fin de semana, sábados, domingos), hora de inicio, tipo
   (mezcla o maratón) y qué series van. El que está al aire dice "AL AIRE".

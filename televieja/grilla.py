@@ -139,7 +139,8 @@ def _subcarpetas(carpeta):
 
 
 def _limpiar_nombre(nombre):
-    return nombre.strip("+-_ ").strip() or nombre
+    """El nombre de la carpeta sin "Copia de", "1080p.WEB-DL"... ni signos sueltos."""
+    return config.nombre_lindo(nombre + ".carpeta").strip("+-_ ").strip() or nombre
 
 
 def _es_pack(carpeta):
@@ -191,7 +192,7 @@ def episodios(carpetas):
         archivos.sort(key=lambda r: _clave_episodio(os.path.relpath(r, c)))
         for r in archivos:
             nombre = os.path.basename(r)
-            salida.append((r, config.etiqueta_episodio(nombre) or config.nombre_lindo(nombre)))
+            salida.append((r, config.titulo_episodio(nombre)))
     return salida
 
 
