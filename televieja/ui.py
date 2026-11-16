@@ -173,6 +173,10 @@ def icono(sup, nombre, x, y, color):
         pygame.draw.circle(sup, color, (x + 11, y + 11), 10, 3)
         pygame.draw.line(sup, color, (x + 11, y + 11), (x + 11, y + 5), 3)
         pygame.draw.line(sup, color, (x + 11, y + 11), (x + 16, y + 13), 3)
+    elif nombre == "mundo":
+        pygame.draw.circle(sup, color, (x + 11, y + 11), 10, 2)
+        pygame.draw.ellipse(sup, color, (x + 6, y + 1, 10, 21), 2)
+        pygame.draw.line(sup, color, (x + 2, y + 11), (x + 20, y + 11), 2)
     elif nombre == "foto":
         pygame.draw.rect(sup, color, (x + 1, y + 3, 21, 16), 2, border_radius=2)
         pygame.draw.polygon(sup, color, [(x + 4, y + 16), (x + 9, y + 9), (x + 13, y + 13),

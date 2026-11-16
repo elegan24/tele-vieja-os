@@ -51,6 +51,12 @@ def orden_videos(archivos):
     return mpv_base() + ["--save-position-on-quit", "--"] + list(archivos)
 
 
+def orden_internet(lista_m3u):
+    """Videos de internet (Internet Archive): se miran directo, sin bajarlos."""
+    return mpv_base() + ["--save-position-on-quit", "--network-timeout=40",
+                         "--cache-secs=60", "--playlist=" + lista_m3u]
+
+
 def orden_radio(archivos):
     return mpv_base() + [
         "--save-position-on-quit", "--force-window=immediate", "--osd-level=3",

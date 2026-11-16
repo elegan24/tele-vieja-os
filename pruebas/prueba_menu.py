@@ -633,6 +633,71 @@ def probar_bluetooth(app, paso, foto):
     assert not any(a.startswith("--audio-device") for a in reproducir.mpv_base())
 
 
+def probar_archivo(app, paso, foto):
+    """Internet Archive con respuestas de mentira (la prueba no usa internet)."""
+    from televieja import archivo
+    # la elección de versiones con archivos como los de archive.org
+    elegidos = archivo.elegir_videos([
+        {"name": "Show S01E02.mp4", "format": "MPEG4", "source": "original", "size": "900"},
+        {"name": "Show S01E02.ia.mp4", "format": "h.264 IA", "source": "derivative",
+         "original": "Show S01E02.mp4", "size": "500"},
+        {"name": "Show S01E01.mpg", "format": "MPEG2", "source": "original", "size": "3000"},
+        {"name": "Show S01E01_512kb.mp4", "format": "512Kb MPEG4", "source": "derivative",
+         "original": "Show S01E01.mpg", "size": "300"},
+        {"name": "Show S01E01.ogv", "format": "Ogg Video", "source": "derivative",
+         "original": "Show S01E01.mpg", "size": "280"},
+        {"name": "Show.thumbs/1.jpg", "format": "Thumbnail", "source": "derivative"}])
+    assert [v["nombre"] for v in elegidos] == ["Show S01E01_512kb.mp4", "Show S01E02.ia.mp4"], elegidos
+    assert elegidos[0]["titulo"] == "Show S01E01", elegidos
+    assert archivo.consulta_de_texto('Popeye "el" (marino) AND') == \
+        "title:(Popeye el marino) OR subject:(Popeye el marino) OR description:(Popeye el marino)"
+
+    viejos = archivo.buscar, archivo.videos
+    archivo.buscar = lambda consulta, pagina=1: (2, [
+        {"id": "betty", "titulo": "Betty Boop Cartoons", "anio": "1936"},
+        {"id": "smart", "titulo": "Get Smart", "anio": ""}])
+    archivo.videos = lambda ident: ("Get Smart", [
+        {"titulo": "Get Smart S01E01 (Mr. Big)", "url": "https://archive.org/download/smart/1.mp4"},
+        {"titulo": "Get Smart S01E02", "url": "https://archive.org/download/smart/2.mp4"}])
+    lanzados = []
+    viejo_lanzar = app.lanzar
+    app.lanzar = lambda orden, *a, **k: (lanzados.append(orden), (0, 10.0, ""))[1]
+    try:
+        while len(app.pila) > 1:
+            app.sacar()
+        principal = app.pila[0]
+        principal.sel = [it.texto for it in principal.items].index("Internet Archive")
+        paso("a")
+        assert isinstance(app.actual, pantallas.ArchivoInicio)
+        foto("30-archivo")
+        app.actual.sel = [it.texto for it in app.actual.items].index("Series de TV clásicas")
+        paso("a")
+
+        def esperar(clase):
+            fin = time.time() + 5
+            while time.time() < fin and not isinstance(app.actual, clase):
+                app.vuelta(0.05)
+                time.sleep(0.02)
+            assert isinstance(app.actual, clase), app.actual
+        esperar(pantallas.ArchivoResultados)
+        assert [it.texto for it in app.actual.items] == ["Betty Boop Cartoons", "Get Smart"]
+        foto("31-archivo-resultados")
+        app.actual.sel = 1
+        paso("a")
+        esperar(pantallas.ArchivoVideos)
+        app.actual.sel = 1
+        paso("a")                            # ve desde el capítulo 2
+        orden = lanzados[-1]
+        assert orden[0] == "mpv" and any(o.startswith("--playlist=") for o in orden), orden
+        m3u = open([o for o in orden if o.startswith("--playlist=")][0].split("=", 1)[1]).read()
+        assert "smart/2.mp4" in m3u and "smart/1.mp4" not in m3u and "#EXTINF:-1,Get Smart S01E02" in m3u
+    finally:
+        archivo.buscar, archivo.videos = viejos
+        app.lanzar = viejo_lanzar
+        while len(app.pila) > 1:
+            app.sacar()
+
+
 def probar_wifi(app, paso, foto):
     """Opciones > WiFi con redes de mentira (acá no hay NetworkManager)."""
     llamadas = []
@@ -899,6 +964,7 @@ game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 c
     probar_wifi(app, paso, foto)
     probar_bluetooth(app, paso, foto)
     probar_grilla_menu(app, paso, foto)
+    probar_archivo(app, paso, foto)
     app.poner(pantallas.Calibrar("Encontré un joystick nuevo: vamos a configurarlo."))
     foto("13-calibrar")
     paso("b")  # (Calibrar ignora botones traducidos; sacamos a mano)

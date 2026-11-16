@@ -9,14 +9,14 @@ y escuchar radionovelas. Todo se maneja con un joystick USB.
 
 ```
  ┌───────────────────────────────┐
- │ ≡ TELE VIEJA            21:45 │
+ │ ≡ FRECUENCIA 99         21:45 │
  │ ───────────────────────────── │
  │ [▶] Canal Retro               │
  │  ▶  Videos                    │
  │  🎮 Juegos                    │
  │  📖 Historietas               │
  │  ♪  Radio                     │
- │  ⬆  Copiar desde pendrive     │
+ │  🌐 Internet Archive          │
  │  ⚙  Opciones                  │
  │  ⏻  Apagar                    │
  └───────────────────────────────┘
@@ -175,7 +175,7 @@ TeleVieja/
 
 **Con pendrive (lo más fácil):** en tu compu creá en el pendrive una carpeta
 `TeleVieja` con la misma forma (solo las carpetas que uses), enchufalo en la netbook y
-en el menú elegí **Copiar desde pendrive**. Copia solo lo nuevo; no borra nada.
+en el menú elegí *Opciones →* **Copiar desde pendrive**. Copia solo lo nuevo; no borra nada.
 
 ### Disco externo USB (para tener mucho más)
 
@@ -471,6 +471,17 @@ viendo · **B sale**.
   `Videos`). Si una carpeta es un pack con varias series adentro, se separan solas. El
   nombre que aparece en la cortina es el de la carpeta: renombrala si querés que diga
   otra cosa (por ejemplo "One Piece" en vez del nombre del pack).
+
+### Internet Archive
+
+Miles de dibujos animados, series, películas y publicidades viejas de
+[archive.org](https://archive.org), una biblioteca gratis y legal. Se miran directo por
+internet, sin bajarlos (hace falta WiFi o cable). Hay categorías armadas (dibujos
+clásicos, series de TV, en español, cine mudo, publicidades...) y **Buscar** con el
+teclado en pantalla. De cada video se elige la versión más liviana: en la tele de tubo
+se ve igual y la netbook no se traba. Las series se ven en orden y siguen solas al
+capítulo siguiente; si salís a la mitad, la próxima vez sigue donde quedó. Lo que es
+para adultos no aparece.
 
 ### Juegos
 

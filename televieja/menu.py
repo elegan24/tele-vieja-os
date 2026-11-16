@@ -16,8 +16,8 @@ import pygame  # noqa: E402
 from . import config, remoto, reproducir, ui  # noqa: E402
 from . import mando as mando_mod  # noqa: E402
 from .mando import Mando  # noqa: E402
-from .pantallas import (Calibrar, Confirmar, ControlCelular, Descargas, ElegirTema, Espera,
-                        GrillaCanal,  # noqa: E402
+from .pantallas import (ArchivoInicio, Calibrar, Confirmar, ControlCelular, Descargas,
+                        ElegirTema, Espera, GrillaCanal,  # noqa: E402
                         Explorador, Lector, Protector, abrir_bluetooth, abrir_wifi,
                         Item, Lista,
                         ListaSistemas, Mensaje)
@@ -687,6 +687,7 @@ def menu_principal(app):
 
     opciones = Lista("Opciones", [
         Item("Configurar joystick", ir(lambda: Calibrar()), icono="joystick"),
+        Item("Copiar desde pendrive", copiar_pendrive, icono="usb"),
         Item("WiFi", abrir_wifi, icono="celular"),
         Item("Auriculares Bluetooth", abrir_bluetooth, icono="nota"),
         Item("Grilla del canal", ir(GrillaCanal), icono="reloj"),
@@ -708,7 +709,7 @@ def menu_principal(app):
         Item("Historietas", ir(lambda: Explorador("historieta", "Historietas", config.EXT_HISTORIETA)),
              icono="libro"),
         Item("Radio", ir(lambda: Explorador("radio", "Radio", config.EXT_AUDIO)), icono="nota"),
-        Item("Copiar desde pendrive", copiar_pendrive, icono="usb"),
+        Item("Internet Archive", ir(ArchivoInicio), icono="mundo"),
         Item("Opciones", lambda app: app.poner(opciones), icono="engranaje"),
         Item("Apagar", lambda app: app.poner(Confirmar("¿Apagar Frecuencia 99?",
                                                        lambda a: a.sistema("poweroff"))),

@@ -1789,3 +1789,116 @@ class ElegirSeries(Lista):
         else:
             self.cargar()
             app.sucio = True
+
+
+# --- Internet Archive ---------------------------------------------------------
+class ArchivoInicio(Lista):
+    """Internet Archive: buscar o elegir una categoría."""
+
+    def __init__(self):
+        from . import archivo
+        super().__init__("Internet Archive", ayuda="A: elegir  B: volver")
+        self.items = [Item("Buscar...", self._buscar, icono="mundo")]
+        for nombre, consulta in archivo.CATEGORIAS:
+            self.items.append(Item(nombre, lambda app, n=nombre, c=consulta:
+                                   abrir_busqueda(app, n, c), icono="tele"))
+        self.items.append(Item("¿Qué es esto?", lambda app: app.poner(Mensaje(
+            "Internet Archive",
+            "Es una biblioteca gratis en internet (archive.org) con miles de dibujos, series, "
+            "películas y publicidades viejas. Se miran directo, sin bajarlos: hace falta "
+            "internet. Están en calidad baja, que en la tele de tubo se ve bien.")),
+            icono="engranaje"))
+
+    def _buscar(self, app):
+        from . import archivo
+
+        def listo(app, texto):
+            consulta = archivo.consulta_de_texto(texto)
+            if consulta:
+                abrir_busqueda(app, texto.strip(), consulta)
+        app.poner(Teclado("¿Qué querés ver?", listo))
+
+
+def abrir_busqueda(app, titulo, consulta):
+    from . import archivo
+
+    def listo(app, resultado, error):
+        if error:
+            app.poner(Mensaje("Internet Archive", str(error)))
+            return
+        total, resultados = resultado
+        if not resultados:
+            app.poner(Mensaje("Internet Archive", "No encontré nada con \"%s\". Probá con otras "
+                                                  "palabras (en inglés suele haber más)." % titulo))
+            return
+        app.poner(ArchivoResultados(titulo, consulta, total, resultados))
+    app.poner(Espera("Internet Archive", "Buscando...", lambda: archivo.buscar(consulta), listo))
+
+
+class ArchivoResultados(Lista):
+    def __init__(self, titulo, consulta, total, resultados):
+        super().__init__(titulo, ayuda="A: abrir  B: volver  L/R: letra")
+        self.consulta = consulta
+        self.total = total
+        self.resultados = list(resultados)
+        self.pagina = 1
+        self.cargar()
+
+    def cargar(self):
+        self.items = [Item(r["titulo"], lambda app, r=r: abrir_item_archivo(app, r),
+                           icono="mundo", extra=r["anio"]) for r in self.resultados]
+        if len(self.resultados) < self.total:
+            self.items.append(Item("Más resultados (%d en total)" % self.total, self._mas,
+                                   icono="flecha"))
+        self.ajustar()
+
+    def _mas(self, app):
+        from . import archivo
+
+        def listo(app, resultado, error):
+            if error:
+                app.poner(Mensaje("Internet Archive", str(error)))
+                return
+            _, nuevos = resultado
+            if nuevos:
+                self.pagina += 1
+                vistos = {r["id"] for r in self.resultados}
+                self.resultados += [r for r in nuevos if r["id"] not in vistos]
+            else:
+                self.total = len(self.resultados)
+            self.cargar()
+        app.poner(Espera(self.titulo, "Buscando más...",
+                         lambda: archivo.buscar(self.consulta, self.pagina + 1), listo))
+
+
+def abrir_item_archivo(app, r):
+    from . import archivo
+
+    def listo(app, resultado, error):
+        if error:
+            app.poner(Mensaje("Internet Archive", str(error)))
+            return
+        titulo, videos = resultado
+        if not videos:
+            app.poner(Mensaje(r["titulo"], "Este no tiene videos que se puedan ver acá."))
+        elif len(videos) == 1:
+            ver_archivo(app, titulo, videos)
+        else:
+            app.poner(ArchivoVideos(titulo, videos))
+    app.poner(Espera(r["titulo"], "Abriendo...", lambda: archivo.videos(r["id"]), listo))
+
+
+def ver_archivo(app, titulo, videos):
+    from . import archivo
+    lista = archivo.lista_m3u(titulo, videos)
+    app.lanzar_mpv(reproducir.orden_internet(lista), reproducir.control_videos)
+
+
+class ArchivoVideos(Lista):
+    """Los capítulos de una serie (o las partes de una película), en orden."""
+
+    def __init__(self, titulo, videos):
+        super().__init__(titulo, ayuda="A: ver  B: volver  L/R: letra")
+        self.videos = videos
+        self.items = [Item(v["titulo"], lambda app, i=i: ver_archivo(app, titulo, self.videos[i:]),
+                           icono="play") for i, v in enumerate(videos)]
