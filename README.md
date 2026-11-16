@@ -476,6 +476,28 @@ viendo · **B sale**.
   nombre que aparece en la cortina es el de la carpeta: renombrala si querés que diga
   otra cosa (por ejemplo "One Piece" en vez del nombre del pack).
 
+### Marcos de la tele (estilo Super Game Boy)
+
+*Opciones → Marco de la tele*: un dibujo alrededor del video. Se ve con los videos 4:3
+(o más angostos que la pantalla) y se esconde solo con los 16:9, que van a pantalla
+completa. El logo, la hora, el zócalo y las cortinas del canal van adentro de la "tele".
+Vienen dos: **TV Clásica** (mueble de madera) y **Super Frecuencia** (pixel art que
+cambia de colores con la hora).
+
+Para agregar uno tuyo, creá una carpeta en `TeleVieja/Marcos` (por ejemplo
+`TeleVieja/Marcos/Mi_Tele`) con PNGs que tengan el **centro transparente**:
+
+- `default.png`: el mismo todo el día.
+- `manana.png` (6 a 12:59), `tarde.png` (13 a 19:59), `noche.png` (20 a 0:59),
+  `madrugada.png` (1 a 5:59): cambia solo según la hora.
+- `marco.json` (opcional): `{"pixelArt": true, "anchoPorcentaje": 75, "altoPorcentaje": 100}`.
+  `pixelArt` agranda sin suavizar (píxeles nítidos). El ancho y alto (y opcionalmente
+  `izquierdaPorcentaje` / `arribaPorcentaje`) dicen dónde va el video; si no está, se
+  detecta solo mirando el hueco transparente.
+
+Conviene dibujarlos en 16:9 (por ejemplo 1280×720) con lo importante cerca del centro:
+en la tele de tubo (4:3) se recortan un poco los costados.
+
 ### Internet Archive
 
 Miles de dibujos animados, series, películas y publicidades viejas de

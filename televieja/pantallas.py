@@ -1904,3 +1904,39 @@ class ArchivoVideos(Lista):
         self.videos = videos
         self.items = [Item(v["titulo"], lambda app, i=i: ver_archivo(app, titulo, self.videos[i:]),
                            icono="play") for i, v in enumerate(videos)]
+
+
+# --- marcos (bezels) ----------------------------------------------------------
+class ElegirMarco(Lista):
+    """Opciones → Marco de la tele: un dibujo alrededor del video (estilo Super Game Boy)."""
+
+    def __init__(self):
+        super().__init__("Marco de la tele", ayuda="A: usar este  B: volver")
+        self.cargar()
+
+    def cargar(self):
+        from . import marcos
+        actual = config.leer_opciones().get("MARCO", "ninguno")
+        self.items = [Item("Sin marco", lambda app: self._usar(app, "ninguno"), icono="tele",
+                           extra="actual" if actual.lower() == "ninguno" else "")]
+        for m in marcos.listar():
+            detalle = "cambia con la hora" if m["modo"] == "horario" else "fijo"
+            if m["nombre"] == actual:
+                detalle = "actual"
+            self.items.append(Item(m["nombre"].replace("_", " "),
+                                   lambda app, n=m["nombre"]: self._usar(app, n),
+                                   icono="foto", extra=detalle))
+        self.items.append(Item("¿Cómo agrego uno mío?", lambda app: app.poner(Mensaje(
+            "Marcos",
+            "Creá una carpeta adentro de TeleVieja/Marcos (por ejemplo TeleVieja/Marcos/Mi_Tele) "
+            "con un PNG con el centro transparente: default.png para todo el día, o manana.png, "
+            "tarde.png, noche.png y madrugada.png para que cambie con la hora. El marco se ve "
+            "con los videos 4:3; con los 16:9 se esconde solo.")), icono="engranaje"))
+        self.ajustar()
+
+    def _usar(self, app, nombre):
+        config.guardar_opcion("MARCO", nombre)
+        app.opciones = config.leer_opciones()
+        app.avisar("Sin marco" if nombre == "ninguno" else "Marco: " + nombre.replace("_", " "))
+        self.cargar()
+        app.sucio = True

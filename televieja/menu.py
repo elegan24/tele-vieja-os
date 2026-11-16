@@ -17,7 +17,7 @@ from . import config, remoto, reproducir, ui  # noqa: E402
 from . import mando as mando_mod  # noqa: E402
 from .mando import Mando  # noqa: E402
 from .pantallas import (ArchivoInicio, Calibrar, Confirmar, ControlCelular, Descargas,
-                        ElegirTema, Espera, GrillaCanal,  # noqa: E402
+                        ElegirMarco, ElegirTema, Espera, GrillaCanal,  # noqa: E402
                         Explorador, Lector, Protector, abrir_bluetooth, abrir_wifi,
                         Item, Lista,
                         ListaSistemas, Mensaje)
@@ -691,6 +691,7 @@ def menu_principal(app):
         Item("WiFi", abrir_wifi, icono="celular"),
         Item("Auriculares Bluetooth", abrir_bluetooth, icono="nota"),
         Item("Grilla del canal", ir(GrillaCanal), icono="reloj"),
+        Item("Marco de la tele", ir(ElegirMarco), icono="foto"),
         Item("Tema", ir(ElegirTema), icono="engranaje"),
         Item("Control desde el celular", ir(ControlCelular), icono="celular"),
         Item("Descargas", ir(Descargas), icono="bajar"),

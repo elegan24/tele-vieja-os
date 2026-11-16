@@ -461,6 +461,62 @@ def probar_grilla_menu(app, paso, foto):
             app.sacar()
 
 
+def probar_marcos():
+    """Marcos (bezels): franja horaria, PNG que va, marco.json, hueco y píxeles para mpv."""
+    import datetime
+    from televieja import marcos, reproducir
+    hora = lambda h, m=0: datetime.datetime(2026, 11, 16, h, m)  # noqa: E731
+    franjas = [marcos.franja(hora(h, m)) for h, m in ((3, 0), (6, 0), (12, 59), (13, 0), (19, 59),
+                                                       (20, 0), (0, 30), (1, 0))]
+    assert franjas == ["madrugada", "manana", "manana", "tarde", "tarde", "noche", "noche",
+                       "madrugada"], franjas
+    nombres = [m["nombre"] for m in marcos.listar()]
+    assert "Super_Frecuencia" in nombres and "TV_Clasica" in nombres, nombres
+    sgb = marcos.buscar("Super_Frecuencia")
+    assert marcos.elegir_png(sgb, hora(14)).endswith("tarde.png")
+    assert marcos.elegir_png(sgb, hora(3)).endswith("madrugada.png")
+    # uno propio en TeleVieja/Marcos: solo manana.png (sin default) y otro con default.png
+    propios = os.path.join(config.RAIZ, "Marcos")
+    pygame.init()
+    for nombre, archivo, hueco, cfg in (
+            ("Solo_Manana", "manana.png", (20, 0, 120, 90), None),
+            ("Con_Json", "default.png", (0, 0, 160, 90), {"anchoPorcentaje": "50%", "altoPorcentaje": 50,
+                                                           "pixelArt": True})):
+        carpeta = os.path.join(propios, nombre)
+        os.makedirs(carpeta, exist_ok=True)
+        sup = pygame.Surface((160, 90), pygame.SRCALPHA)
+        sup.fill((200, 50, 50, 255))
+        sup.fill((0, 0, 0, 0), hueco)
+        pygame.image.save(sup, os.path.join(carpeta, archivo))
+        if cfg:
+            json.dump(cfg, open(os.path.join(carpeta, "marco.json"), "w"))
+    listados = {m["nombre"]: m for m in marcos.listar()}
+    assert listados["Solo_Manana"]["modo"] == "horario" and listados["Solo_Manana"]["propio"]
+    assert listados["Con_Json"]["modo"] == "fijo"
+    solo = marcos.buscar("Solo_Manana")
+    assert marcos.elegir_png(solo, hora(22)).endswith("manana.png")  # no hay noche ni default
+    cache = os.path.join(TMP, "cache-marcos")
+    d = marcos.preparar(solo, 160, 90, cache)
+    assert [round(v, 3) for v in d["ventana"]] == [0.125, 0.0, 0.125, 0.0], d   # hueco detectado
+    crudo = open(d["archivo"], "rb").read()
+    assert len(crudo) == 160 * 90 * 4
+    assert crudo[(45 * 160 + 80) * 4:(45 * 160 + 80) * 4 + 4] == b"\0\0\0\0"   # centro transparente
+    assert crudo[0:4] == bytes((50, 50, 200, 255))                               # BGRA, opaco
+    d = marcos.preparar(marcos.buscar("Con_Json"), 160, 90, cache)
+    assert [round(v, 3) for v in d["ventana"]] == [0.25, 0.25, 0.25, 0.25], d    # marco.json
+    d = marcos.preparar(sgb, 640, 480, cache, hora(21))
+    assert d["png"].endswith("noche.png") and [round(v, 2) for v in d["ventana"]] == [0.1] * 4, d
+    # mpv: con marco elegido se carga marco.lua; sin marco, nada
+    config.guardar_opcion("MARCO", "Super_Frecuencia")
+    extra = reproducir.opciones_marco()
+    assert any(o.endswith("marco.lua") for o in extra) and \
+        any(o == "--script-opts-append=marco-carpeta=" + sgb for o in extra), extra
+    config.guardar_opcion("MARCO", "ninguno")
+    assert reproducir.opciones_marco() == []
+    orden = reproducir.orden_canal(dict(config.OPCIONES_POR_DEFECTO, NOMBRE_CANAL="TELE, VIEJA"), "c.json")
+    assert "--script-opts-append=canal-nombre=TELE, VIEJA" in orden, orden
+
+
 def probar_wine():
     from televieja import wine
     pc = os.path.join(config.RAIZ, "Juegos", "PC")
@@ -706,6 +762,25 @@ def probar_archivo(app, paso, foto):
             app.sacar()
 
 
+def probar_marco_menu(app, paso, foto):
+    """Opciones > Marco de la tele: elegir uno lo guarda en las opciones."""
+    while len(app.pila) > 1:
+        app.sacar()
+    app.poner(pantallas.ElegirMarco())
+    textos = [it.texto for it in app.actual.items]
+    assert textos[0] == "Sin marco" and "Super Frecuencia" in textos and "TV Clasica" in textos, textos
+    app.actual.sel = textos.index("Super Frecuencia")
+    paso("a")
+    assert config.leer_opciones()["MARCO"] == "Super_Frecuencia"
+    assert app.actual.items[app.actual.sel].extra == "actual"
+    foto("32-marcos")
+    app.actual.sel = 0
+    paso("a")
+    assert config.leer_opciones()["MARCO"] == "ninguno"
+    while len(app.pila) > 1:
+        app.sacar()
+
+
 def probar_wifi(app, paso, foto):
     """Opciones > WiFi con redes de mentira (acá no hay NetworkManager)."""
     llamadas = []
@@ -806,6 +881,7 @@ game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 c
     config.ARCHIVO_NOMBRES_ARCADE = dat
     probar_episodios()
     probar_canal()
+    probar_marcos()
     probar_wine()
     probar_glxinfo()
     app = menu.App()
@@ -973,6 +1049,7 @@ game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 c
     probar_bluetooth(app, paso, foto)
     probar_grilla_menu(app, paso, foto)
     probar_archivo(app, paso, foto)
+    probar_marco_menu(app, paso, foto)
     app.poner(pantallas.Calibrar("Encontré un joystick nuevo: vamos a configurarlo."))
     foto("13-calibrar")
     paso("b")  # (Calibrar ignora botones traducidos; sacamos a mano)

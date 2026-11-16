@@ -44,7 +44,22 @@ def mpv_base():
         res = ""
     if res in ASPECTO_PIXEL:
         orden.append("--monitorpixelaspect=" + ASPECTO_PIXEL[res])
-    return orden
+    return orden + opciones_marco()
+
+
+def opciones_marco():
+    """Si hay un marco elegido (Opciones → Marco de la tele), marco.lua lo dibuja."""
+    nombre = config.leer_opciones().get("MARCO", "ninguno").strip()
+    if not nombre or nombre.lower() == "ninguno":
+        return []
+    from . import marcos
+    carpeta = marcos.buscar(nombre)
+    if not carpeta:
+        return []
+    return ["--script=" + os.path.join(config.SISTEMA_DIR, "marco.lua"),
+            "--script-opts-append=marco-carpeta=" + carpeta,
+            "--script-opts-append=marco-ayudante=" + os.path.join(config.BIN_DIR, "marco.py"),
+            "--script-opts-append=marco-cache=" + os.path.join(config.CACHE_DIR, "marcos")]
 
 
 def orden_videos(archivos):
@@ -74,18 +89,16 @@ def armar_canal(opciones):
 
 
 def orden_canal(opciones, lista, color="&HFFFFFF&"):
-    nombre = opciones.get("NOMBRE_CANAL", "FRECUENCIA 99").replace(",", " ")
-    opts = ("canal-nombre=%s,canal-reloj=%s,canal-empezado=%s,canal-color=%s,"
-            "canal-presentacion=%s") % (
-        nombre,
-        "si" if config.opcion_si(opciones, "CANAL_RELOJ") else "no",
-        "si" if config.opcion_si(opciones, "CANAL_EMPEZADO") else "no",
-        color,
-        "si" if config.opcion_si(opciones, "CANAL_PRESENTACION") else "no",
-    ) + ",canal-catalogo=" + lista
+    def si_no(clave):
+        return "si" if config.opcion_si(opciones, clave) else "no"
+    valores = [("nombre", opciones.get("NOMBRE_CANAL", "FRECUENCIA 99")),
+               ("reloj", si_no("CANAL_RELOJ")), ("empezado", si_no("CANAL_EMPEZADO")),
+               ("color", color), ("presentacion", si_no("CANAL_PRESENTACION")),
+               ("catalogo", lista)]
+    # de a uno ("-append"): así no pisa las opciones del marco y aguanta comas en los valores
     return mpv_base() + [
         "--script=" + os.path.join(config.SISTEMA_DIR, "canal.lua"),
-        "--script-opts=" + opts,
+    ] + ["--script-opts-append=canal-%s=%s" % (k, v) for k, v in valores] + [
         "--idle=yes", "--force-window=yes",   # canal.lua va cargando los programas
     ]
 

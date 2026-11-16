@@ -10,14 +10,15 @@ local opts = { nombre = "FRECUENCIA 99", reloj = "si", empezado = "si", color = 
                presentacion = "si", catalogo = "" }
 require("mp.options").read_options(opts, "canal")
 
-local logo = mp.create_osd_overlay("ass-events")
+-- Capas, de abajo hacia arriba: video (con su marco, si hay) → HUD (logo y reloj) →
+-- zócalo "AHORA" → cortina.
+local hud = mp.create_osd_overlay("ass-events")
 local cartel = mp.create_osd_overlay("ass-events")
 local carta = mp.create_osd_overlay("ass-events")
-carta.z = 20  -- arriba de todo
-
--- La tele de tubo corta los bordes: dejamos un margen.
-local W, H = 640, 480
-local MX, MY = 46, 30
+hud.z, cartel.z, carta.z = 10, 11, 20
+local ALTO_TELA = 480
+local tela = { w = 640, h = ALTO_TELA }  -- la pantalla, en unidades virtuales
+local ventana = { 0, 0, 0, 0 }            -- márgenes del video (marco): izq, arriba, der, abajo
 
 local cat = nil           -- la programación
 local estado = { punteros = {} }  -- por qué capítulo va cada serie
@@ -133,6 +134,27 @@ local function encolar_lo_que_sigue()
 end
 
 -- --- en pantalla ------------------------------------------------------------------
+-- Todo lo del canal (logo, reloj, zócalo, cortina) es una capa aparte del video: se
+-- dibuja en una "tela" virtual de 480 de alto y el ancho que dé la pantalla, y se mide
+-- en porcentajes de la "tele" (el video, o el hueco del marco): como vh/vmin y clamp()
+-- en una página web. No cambia con la resolución de cada archivo.
+local function caja()  -- x, y, ancho, alto de la tele, en la tela
+    return ventana[1] * tela.w, ventana[2] * tela.h,
+           tela.w * (1 - ventana[1] - ventana[3]), tela.h * (1 - ventana[2] - ventana[4])
+end
+
+local function entre(minimo, valor, maximo)  -- clamp()
+    return math.max(minimo, math.min(maximo, valor))
+end
+
+local function medidas()
+    local x, y, w, h = caja()
+    local u = h / 100                       -- 1% del alto de la tele
+    -- la tele de tubo corta los bordes: margen seguro
+    -- (la tele de tubo corta un 5-7% de cada lado: el margen depende del ancho también)
+    return x, y, w, h, u, entre(10, math.max(7 * u, 0.07 * w), 70), entre(8, 6 * u, 50)
+end
+
 local function limpiar(texto)
     return ((texto or ""):gsub("[{}\\]", ""))
 end
@@ -148,31 +170,22 @@ local function mayusculas(texto)
     return texto
 end
 
-local function dibujar_logo()
-    if not actual or actual.tipo ~= "programa" then
-        logo:remove()
-        return
-    end
-    logo.res_x, logo.res_y = W, H
-    -- el color del logo lo pone el tema del menú
-    local estilo = "{\\an9\\pos(%d,%d)\\fs%d\\b1\\bord2\\shad1\\1c" .. opts.color ..
-                   "\\3c&H202020&\\alpha&H60&}"
-    local texto = string.format(estilo, W - MX, MY, 22) .. limpiar(opts.nombre)
-    if opts.reloj == "si" then
-        texto = texto .. "\n" .. string.format(estilo, W - MX, MY + 26, 20) .. os.date("%H:%M")
-    end
-    logo.data = texto
-    logo:update()
+local function letras(texto)  -- cantidad de letras (no de bytes)
+    local _, n = texto:gsub("[^\128-\191]", "")
+    return n
 end
 
--- Recorta sin partir una letra con tilde (UTF-8)
-local function recortar(texto, n)
-    if #texto <= n then return texto end
-    local corte = n
-    while corte > 0 and (texto:byte(corte + 1) or 0) >= 128 and (texto:byte(corte + 1) or 0) < 192 do
-        corte = corte - 1
+-- Recorta para que entre en "ancho" (estimado por el tamaño de letra), sin partir tildes
+local function recortar(texto, ancho, tam, factor)
+    local caben = math.floor(ancho / (tam * (factor or 0.56)))
+    if letras(texto) <= caben then return texto end
+    local salida, n = {}, 0
+    for letra in texto:gmatch("[\1-\127\192-\255][\128-\191]*") do
+        n = n + 1
+        if n > caben - 1 then break end
+        salida[#salida + 1] = letra
     end
-    return texto:sub(1, corte) .. "…"
+    return table.concat(salida) .. "…"
 end
 
 local function avance(t, desde, hasta)  -- 0..1 con frenado suave al final
@@ -180,26 +193,58 @@ local function avance(t, desde, hasta)  -- 0..1 con frenado suave al final
     return 1 - (1 - x) * (1 - x)
 end
 
--- Zócalo "AHORA": recuadro del color del canal + título, entra deslizando y dura 6 segundos
-local function dibujar_zocalo(t, texto)
+local function recorte()  -- \clip para que nada se salga de la tele
+    local x, y, w, h = caja()
+    return string.format("\\clip(%.0f,%.0f,%.0f,%.0f)", math.floor(x), math.floor(y),
+                         math.ceil(x + w), math.ceil(y + h))
+end
+
+-- Mosca del canal y reloj, arriba a la derecha de la tele
+local function dibujar_logo()
+    if not actual or actual.tipo ~= "programa" then
+        hud:remove()
+        return
+    end
+    local x, y, w, _, u, mx, my = medidas()
+    local tam_logo, tam_hora = entre(14, 4.6 * u, 30), entre(12, 4.2 * u, 26)
+    local estilo = "{\\an9\\pos(%.0f,%.0f)\\fs%.0f\\b1\\bord2\\shad1\\1c" .. opts.color ..
+                   "\\3c&H202020&\\alpha&H60&}"
+    local texto = string.format(estilo, x + w - mx, y + my, tam_logo) .. limpiar(opts.nombre)
+    if opts.reloj == "si" then
+        texto = texto .. "\n" .. string.format(estilo, x + w - mx, y + my + tam_logo * 1.15,
+                                               tam_hora) .. os.date("%H:%M")
+    end
+    hud.res_x, hud.res_y = tela.w, tela.h
+    hud.data = texto
+    hud:update()
+end
+
+-- Zócalo "AHORA": recuadro del color del canal + título; entra deslizando y dura 6 s
+local function dibujar_zocalo(t, serie_episodio)
+    local x, y, w, h, u, mx, my = medidas()
+    local alto = entre(18, 5.6 * u, 36)
+    local ancho = alto * 3.3
     local entra = avance(t, 0, 0.35)
-    local y = H - MY - 26 + math.floor(18 * (1 - entra))
+    local by = y + h - my - alto + math.floor(3.5 * u * (1 - entra))
+    local tx = x + mx + ancho + 1.8 * u
+    local tam = entre(14, 4.4 * u, 30)
     local alfa = string.format("\\alpha&H%02X&", math.floor(255 * (1 - entra)))
+    local titulo = recortar(serie_episodio, x + w - mx - tx, tam)
+    cartel.res_x, cartel.res_y = tela.w, tela.h
     cartel.data = table.concat({
-        string.format("{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c%s%s\\p1}m 0 0 l 86 0 86 26 0 26{\\p0}",
-                      MX, y, opts.color, alfa),
-        string.format("{\\an5\\pos(%d,%d)\\fs18\\b1\\bord0\\shad0\\1c&H141414&%s}AHORA",
-                      MX + 43, y + 13, alfa),
-        string.format("{\\an4\\pos(%d,%d)\\fs21\\b1\\bord2\\shad1\\1c&HFFFFFF&\\3c&H000000&%s}%s",
-                      MX + 96, y + 13, alfa, texto),
+        string.format("{\\an7\\pos(%.0f,%.0f)\\bord0\\shad0\\1c%s%s\\p1}m 0 0 l %.0f 0 %.0f %.0f 0 %.0f{\\p0}",
+                      x + mx, by, opts.color, alfa, ancho, ancho, alto, alto),
+        string.format("{\\an5\\pos(%.0f,%.0f)\\fs%.0f\\b1\\bord0\\shad0\\1c&H141414&%s}AHORA",
+                      x + mx + ancho / 2, by + alto / 2, alto * 0.68, alfa),
+        string.format("{\\an4\\pos(%.0f,%.0f)\\fs%.0f\\b1\\bord2\\shad1\\1c&HFFFFFF&\\3c&H000000&%s}%s",
+                      tx, by + alto / 2, tam, alfa, titulo),
     }, "\n")
     cartel:update()
 end
 
 local function mostrar_titulo()
     if not actual or actual.tipo ~= "programa" or not actual.serie then return end
-    local texto = recortar(limpiar(actual.serie .. " — " .. actual.episodio), 48)
-    cartel.res_x, cartel.res_y = W, H
+    local texto = limpiar(actual.serie .. " — " .. actual.episodio)
     if timer_cartel then timer_cartel:kill() end
     local inicio = mp.get_time()
     dibujar_zocalo(0, texto)
@@ -215,96 +260,139 @@ local function mostrar_titulo()
     end)
 end
 
--- Cortina "A continuación", como las de Cartoon Network: tablero de damas que camina y
--- una franja con lo que viene. Si empieza otro bloque, lo anuncia ("MARATÓN DEL DOMINGO").
--- Los overlays de mpv no se animan solos: se redibuja varias veces por segundo.
-local DURACION = 4
+-- Cortina "A continuación" (bumper), estilo Cartoon Network: ~3 segundos. Tablero de damas
+-- que camina y una franja del color del canal con la serie que viene. Si empieza otro
+-- bloque, lo anuncia ("COMIENZA: MARATÓN DEL DOMINGO"). Los overlays de mpv no se animan
+-- solos: se redibuja varias veces por segundo.
+local DURACION = 3.2
 
 local function tablero(color, inicio, corrimiento)
+    local x, y, w, h = caja()
+    local lado = h / 6
     local trazos = {}
     for fila = 0, 5 do
-        for col = -1, 10 do
+        for col = -1, math.ceil(w / lado) + 2 do
             if (fila + col) % 2 == inicio then
-                local x, y = col * 80, fila * 80
-                trazos[#trazos + 1] = string.format("m %d %d l %d %d %d %d %d %d ",
-                    x, y, x + 80, y, x + 80, y + 80, x, y + 80)
+                local px, py = math.floor(col * lado), math.floor(fila * lado)
+                local q = math.ceil(lado)
+                trazos[#trazos + 1] = string.format("m %.0f %.0f l %.0f %.0f %.0f %.0f %.0f %.0f ",
+                    px, py, px + q, py, px + q, py + q, px, py + q)
             end
         end
     end
-    return string.format("{\\an7\\pos(%d,0)\\bord0\\shad0\\1c%s\\p1}", corrimiento, color) ..
-           table.concat(trazos) .. "{\\p0}"
+    return string.format("{\\an7\\pos(%.0f,%.0f)%s\\bord0\\shad0\\1c%s\\p1}", x + corrimiento, y,
+                         recorte(), color) .. table.concat(trazos) .. "{\\p0}"
 end
 
 local function dibujar_carta(t, encabezado, serie, episodio)
-    local tam = 44
-    if #serie > 24 then tam = 26 elseif #serie > 16 then tam = 34 end
-    local corrimiento = -(math.floor(t / DURACION * 160) % 160)
-    local franja = math.floor(-640 + 640 * avance(t, 0, 0.35))
-    local etiqueta = math.floor(-400 + (MX + 10 + 400) * avance(t, 0.15, 0.5))
-    local escala = math.floor(30 + 70 * avance(t, 0.3, 0.6))
-    local opaco = math.floor(255 * (1 - avance(t, 0.55, 0.9)))
+    local x, y, w, h, u, mx, my = medidas()
+    local lado = h / 6
+    local corrimiento = -((t / DURACION * 2 * lado) % (2 * lado))   -- el tablero camina
+    local fy, falto = y + 0.344 * h, 0.3125 * h                       -- la franja
+    local franja = math.floor(x - w + w * avance(t, 0, 0.3))
+    local etiqueta = math.floor(x - w * 0.6 + (mx + w * 0.6) * avance(t, 0.12, 0.42))
+    local escala = math.floor(30 + 70 * avance(t, 0.25, 0.5))
+    local opaco = math.floor(255 * (1 - avance(t, 0.45, 0.75)))
+    local tam_etiqueta = entre(12, 5 * u, 30)
+    local tam_serie = math.min(entre(16, 9.2 * u, 60), (w - 2 * mx) / (letras(serie) * 0.68))
+    tam_serie = math.max(entre(12, 3.6 * u, 24), tam_serie)
+    local tam_ep = entre(12, 4.6 * u, 28)
+    local clip = recorte()
+    carta.res_x, carta.res_y = tela.w, tela.h
     carta.data = table.concat({
         tablero("&H101010&", 0, corrimiento),
         tablero("&HF0F0F0&", 1, corrimiento),
-        string.format("{\\an7\\pos(%d,165)\\bord0\\shad0\\1c%s\\p1}m 0 0 l 640 0 640 150 0 150{\\p0}",
-                      franja, opts.color),
-        string.format("{\\an4\\pos(%d,190)\\fs24\\b1\\bord0\\shad0\\1c&H101010&}%s",
-                      etiqueta, encabezado),
-        string.format("{\\an5\\pos(320,245)\\q2\\fs%d\\b1\\bord3\\shad0\\1c&HFFFFFF&\\3c&H101010&" ..
-                      "\\fscx%d\\fscy%d}%s", tam, escala, escala, serie),
-        string.format("{\\an5\\pos(320,295)\\fs22\\b1\\bord0\\shad0\\1c&H101010&\\alpha&H%02X&}%s",
-                      opaco, episodio),
-        string.format("{\\an3\\pos(%d,%d)\\fs20\\b1\\bord2\\shad0\\1c&HFFFFFF&\\3c&H101010&}%s",
-                      W - MX, H - MY, limpiar(opts.nombre)),
+        string.format("{\\an7\\pos(%.0f,%.0f)%s\\bord0\\shad0\\1c%s\\p1}m 0 0 l %.0f 0 %.0f %.0f 0 %.0f{\\p0}",
+                      franja, fy, clip, opts.color, w, w, falto, falto),
+        string.format("{\\an4\\pos(%.0f,%.0f)%s\\fs%.0f\\b1\\bord0\\shad0\\1c&H101010&}%s",
+                      etiqueta, fy + 0.17 * falto, clip, tam_etiqueta, encabezado),
+        string.format("{\\an5\\pos(%.0f,%.0f)%s\\q2\\fs%.0f\\b1\\bord3\\shad0\\1c&HFFFFFF&\\3c&H101010&" ..
+                      "\\fscx%.0f\\fscy%.0f}%s", x + w / 2, fy + 0.53 * falto, clip, tam_serie,
+                      escala, escala, serie),
+        string.format("{\\an5\\pos(%.0f,%.0f)%s\\fs%.0f\\b1\\bord0\\shad0\\1c&H101010&\\alpha&H%02X&}%s",
+                      x + w / 2, fy + 0.87 * falto, clip, tam_ep, opaco,
+                      recortar(episodio, w - 2 * mx, tam_ep)),
+        string.format("{\\an3\\pos(%.0f,%.0f)%s\\fs%.0f\\b1\\bord2\\shad0\\1c&HFFFFFF&\\3c&H101010&}%s",
+                      x + w - mx, y + h - my, clip, entre(12, 4.2 * u, 26), limpiar(opts.nombre)),
     }, "\n")
     carta:update()
 end
 
--- El bumper arranca apenas termina lo anterior y tapa la carga del capítulo, que
--- espera en pausa abajo: nunca queda la pantalla en negro. Al irse, el zócalo "AHORA".
+-- La cortina arranca un instante ANTES de que termine lo anterior (cero cuadros negros) y
+-- tapa la carga del capítulo, que espera en pausa abajo. Se va recién cuando el capítulo
+-- ya tiene imagen; ahí arranca el capítulo y aparece el zócalo "AHORA".
+local listo_abajo = false
+local cargado_abajo = nil   -- cuándo se cargó el capítulo que espera abajo
+local ya_presentado = false
+
+local function terminar_carta()
+    timer_carta:kill()
+    timer_carta = nil
+    carta_activa = false
+    carta:remove()
+    mp.set_property_bool("pause", false)
+    mostrar_titulo()
+end
+
 local function presentar(prox)
     local encabezado = "A CONTINUACIÓN"
     if ultimo_bloque and prox.bloque ~= ultimo_bloque then
         encabezado = "COMIENZA: " .. mayusculas(limpiar(prox.bloque))
     end
     local serie, episodio = mayusculas(limpiar(prox.serie)), limpiar(prox.episodio)
-    carta.res_x, carta.res_y = W, H
-    carta_activa = true
+    carta_activa, listo_abajo, ya_presentado, cargado_abajo = true, false, true, nil
     if timer_carta then timer_carta:kill() end
     local inicio = mp.get_time()
     dibujar_carta(0, encabezado, serie, episodio)
     timer_carta = mp.add_periodic_timer(1 / 15, function()
         local t = mp.get_time() - inicio
-        if t >= DURACION then
-            timer_carta:kill()
-            timer_carta = nil
-            carta_activa = false
-            carta:remove()
-            mp.set_property_bool("pause", false)
-            mostrar_titulo()
+        -- listo: mpv avisó que hay imagen, o ya pasó un ratito desde que cargó
+        local listo = listo_abajo or (cargado_abajo and mp.get_time() - cargado_abajo > 0.6)
+        if t >= DURACION and (listo or t >= DURACION + 8) then
+            terminar_carta()
         else
-            dibujar_carta(t, encabezado, serie, episodio)
+            dibujar_carta(math.min(t, DURACION), encabezado, serie, episodio)
         end
     end)
 end
 
--- --- eventos ----------------------------------------------------------------------
-mp.register_event("end-file", function(evento)
-    -- Terminó solo (no zapping) y lo que sigue es un programa: bumper, salvo que lo que
-    -- terminó haya sido una cortina propia (ya hizo de presentación).
+local function intentar_cortina()
+    -- Lo que sigue es un programa y lo que termina no es una cortina propia (esa ya hizo
+    -- de presentación): va el bumper.
     local prox = cola[1]
-    if evento.reason == "eof" and not primero and opts.presentacion == "si" and prox
-       and prox.tipo == "programa" and actual and actual.tipo ~= "cortina" then
+    if not carta_activa and not ya_presentado and not primero and opts.presentacion == "si"
+       and prox and prox.tipo == "programa" and actual and actual.tipo ~= "cortina" then
         presentar(prox)
     end
+end
+
+-- --- eventos ----------------------------------------------------------------------
+local zocalo_pendiente = false
+
+mp.observe_property("time-remaining", "number", function(_, quedan)
+    if quedan and quedan <= 0.3 and not mp.get_property_bool("pause", false) then
+        intentar_cortina()
+    end
+end)
+
+mp.register_event("end-file", function(evento)
+    if evento.reason == "eof" then intentar_cortina() end  -- por si no llegó a avisar antes
 end)
 
 mp.register_event("file-loaded", function()
     local ruta = mp.get_property("path", "")
     if #cola > 0 then table.remove(cola, 1) end
     actual = info[ruta] or { tipo = tipo_de(ruta) }
+    ya_presentado = false
     if carta_activa then
-        mp.set_property_bool("pause", true)  -- espera abajo del bumper
+        mp.set_property_bool("pause", true)  -- espera abajo de la cortina
+        cargado_abajo = mp.get_time()
+    end
+    zocalo_pendiente = false
+    if actual.tipo ~= "programa" and timer_cartel then  -- en las tandas, sin zócalo
+        timer_cartel:kill()
+        timer_cartel = nil
+        cartel:remove()
     end
     if actual.tipo == "programa" and actual.serie then
         -- La primera vez agarrás el programa empezado, como al prender la tele.
@@ -319,13 +407,44 @@ mp.register_event("file-loaded", function()
         ultimo_bloque = actual.bloque
         guardar_estado()
         encolar_lo_que_sigue()
-        if not carta_activa then mostrar_titulo() end
+        zocalo_pendiente = not carta_activa  -- sin cortina: el zócalo cuando haya imagen
     end
     primero = false
     dibujar_logo()
 end)
 
+mp.register_event("video-reconfig", function()
+    if carta_activa and cargado_abajo then listo_abajo = true end
+end)
+
+mp.register_event("playback-restart", function()
+    -- ya hay imagen del archivo nuevo
+    if carta_activa then listo_abajo = true end
+    if zocalo_pendiente then
+        zocalo_pendiente = false
+        mostrar_titulo()
+    end
+end)
+
 mp.add_periodic_timer(10, dibujar_logo)
+
+local function redibujar()
+    dibujar_logo()
+end
+
+mp.observe_property("osd-dimensions", "native", function(_, dim)
+    if dim and dim.w and dim.w > 0 and dim.h > 0 then
+        tela.w = math.floor(ALTO_TELA * dim.w / dim.h)
+        redibujar()
+    end
+end)
+
+-- marco.lua avisa dónde quedó el video (márgenes: izquierda, arriba, derecha, abajo)
+mp.register_script_message("marco-ventana", function(izq, arriba, der, abajo)
+    ventana = { tonumber(izq) or 0, tonumber(arriba) or 0, tonumber(der) or 0,
+                tonumber(abajo) or 0 }
+    redibujar()
+end)
 
 -- Zapping: otro programa del bloque, sin cortina ni tandas
 local function zapping()

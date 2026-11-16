@@ -39,6 +39,7 @@ OPCIONES_POR_DEFECTO = {
     "CANAL_RELOJ": "si",
     "CANAL_EMPEZADO": "si",
     "CANAL_PRESENTACION": "si",
+    "MARCO": "ninguno",
     "TANDAS_POR_CORTE": "2",
     "ARRANCAR_EN": "menu",
     "SONIDOS_MENU": "si",

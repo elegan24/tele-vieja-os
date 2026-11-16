@@ -154,7 +154,7 @@ fi
 verde "==> 4/7 Creando carpetas en $CASA/TeleVieja..."
 R="$CASA/TeleVieja"
 sudo -u "$USUARIO" mkdir -p \
-    "$R/Videos" "$R/Canal/Programas" "$R/Canal/Tandas" "$R/Canal/Cortinas" \
+    "$R/Videos" "$R/Canal/Programas" "$R/Canal/Tandas" "$R/Canal/Cortinas" "$R/Marcos" \
     "$R/Juegos/Family" "$R/Juegos/SuperNintendo" "$R/Juegos/Sega" \
     "$R/Juegos/GameBoy" "$R/Juegos/GameBoyAdvance" "$R/Juegos/NeoGeo" "$R/Juegos/PlayStation" \
     "$R/Juegos/Nintendo64" "$R/Juegos/Arcade" "$R/Juegos/PC" \
