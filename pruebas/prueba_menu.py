@@ -825,6 +825,26 @@ def probar_youtube(app, paso, foto):
         assert lanzados[-1][0] == ["kodi", "-fs"] and lanzados[-1][2].get("combo_salida")
         app.kodi()                                 # la segunda vez, directo
         assert len(app.pila) == 1 and lanzados[-1][0] == ["kodi", "-fs"]
+        # si Kodi se cae enseguida (placa sin 3D), reintenta en modo compatible y lo recuerda
+        respuestas = [(-11, 3.0, ""), (0, 120.0, "")]
+        app.lanzar = lambda orden, *a, **k: (lanzados.append((orden, a, k)), respuestas.pop(0))[1]
+        app.kodi()
+        assert (lanzados[-2][2].get("env") or {}).get("LIBGL_ALWAYS_SOFTWARE") is None
+        assert lanzados[-1][2]["env"]["LIBGL_ALWAYS_SOFTWARE"] == "1"
+        assert config.leer_opciones().get("KODI_COMPATIBLE") == "si"
+        # ya en modo compatible, si igual se cae: muestra el error del registro de Kodi
+        registro = os.path.expanduser("~/.kodi/temp/kodi.log")
+        os.makedirs(os.path.dirname(registro), exist_ok=True)
+        with open(registro, "w") as f:
+            f.write("2026-11-17 02:33:00.1 T:1   info <general>: Arrancando\n"
+                    "2026-11-17 02:33:01.2 T:1  error <general>: GLX: Failed to create context\n")
+        respuestas[:] = [(-6, 2.0, "")]
+        app.kodi()
+        assert lanzados[-1][2]["env"]["LIBGL_ALWAYS_SOFTWARE"] == "1"
+        assert isinstance(app.actual, pantallas.Mensaje) and app.actual.titulo_caja == "Kodi se cerró solo"
+        assert "GLX: Failed to create context" in app.actual.texto, app.actual.texto
+        app.sacar()
+        config.guardar_opcion("KODI_COMPATIBLE", "no")
         shutil.which = viejo_which
     finally:
         youtube.buscar, app.lanzar = viejo_buscar, viejo_lanzar

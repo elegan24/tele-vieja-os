@@ -530,18 +530,34 @@ class App:
             return
         marca = os.path.join(config.CONFIG_DIR, "kodi-visto")
 
+        def correr(app, compatible):
+            env = dict(os.environ, LIBGL_ALWAYS_SOFTWARE="1") if compatible else None
+            return app.lanzar(["kodi", "-fs"], reproducir.control_kodi, "kodi",
+                              combo_salida=True, env=env)
+
         def abrir(app):
             try:
                 os.makedirs(config.CONFIG_DIR, exist_ok=True)
                 open(marca, "w").close()
             except OSError:
                 pass
-            rc, duracion, error = app.lanzar(["kodi", "-fs"], reproducir.control_kodi, "kodi",
-                                             combo_salida=True)
+            compatible = config.opcion_si(app.opciones, "KODI_COMPATIBLE")
+            rc, duracion, error = correr(app, compatible)
             if rc is None:
                 app.poner(Mensaje("No se pudo abrir Kodi", error))
-            elif rc not in (0, 64, 66) and duracion < 5:
-                app.poner(Mensaje("No se pudo abrir Kodi", app._ultimas_lineas("kodi")))
+                return
+            if rc in (0, 64, 66) or duracion >= 60:
+                return   # salió bien (o se usó un buen rato)
+            if not compatible:
+                # Se cerró solo: casi siempre es la placa de video (sin 3D). Otra vez, en modo
+                # compatible: el 3D lo hace el procesador (más lento, pero no depende de la placa)
+                rc, duracion, error = correr(app, True)
+                if rc in (0, 64, 66) or duracion >= 60:
+                    config.guardar_opcion("KODI_COMPATIBLE", "si")
+                    app.opciones = config.leer_opciones()
+                    return
+            app.poner(Mensaje("Kodi se cerró solo", errores_kodi() or app._ultimas_lineas("kodi")))
+
         if os.path.exists(marca):
             abrir(self)
         else:
@@ -707,6 +723,19 @@ class App:
         # Cada modelo de joystick nuevo se configura una vez (RetroArch necesita sus botones).
         if not self.mando.esta_calibrado(j) and not isinstance(self.actual, Calibrar):
             self.poner(Calibrar("Encontré un joystick nuevo: vamos a configurarlo."))
+
+
+def errores_kodi():
+    """Las últimas líneas de error del registro de Kodi, para mostrar en pantalla."""
+    ruta = os.path.join(os.path.expanduser("~"), ".kodi", "temp", "kodi.log")
+    try:
+        with open(ruta, encoding="utf-8", errors="replace") as f:
+            lineas = f.read().splitlines()
+    except OSError:
+        return ""
+    errores = [l.split(">:", 1)[-1].strip() if ">:" in l else l.strip()
+               for l in lineas if " error " in l.lower() or "fatal" in l.lower()]
+    return "\n".join(e[:90] for e in errores[-4:])
 
 
 GUIA_KODI = (
