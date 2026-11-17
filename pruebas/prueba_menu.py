@@ -837,12 +837,16 @@ def probar_youtube(app, paso, foto):
         os.makedirs(os.path.dirname(registro), exist_ok=True)
         with open(registro, "w") as f:
             f.write("2026-11-17 02:33:00.1 T:1   info <general>: Arrancando\n"
-                    "2026-11-17 02:33:01.2 T:1  error <general>: GLX: Failed to create context\n")
+                    "2026-11-17 02:33:01.2 T:1  error <general>: GLX: Failed to create context\n"
+                    "2026-11-17 02:33:01.3 T:1  error <general>: DBus error: UPower not provided\n")
+        with open(reproducir.ruta_log("kodi"), "w") as f:
+            f.write("/usr/bin/kodi: linea 190: 1234 Illegal instruction\n")
         respuestas[:] = [(-6, 2.0, "")]
         app.kodi()
         assert lanzados[-1][2]["env"]["LIBGL_ALWAYS_SOFTWARE"] == "1"
         assert isinstance(app.actual, pantallas.Mensaje) and app.actual.titulo_caja == "Kodi se cerró solo"
         assert "GLX: Failed to create context" in app.actual.texto, app.actual.texto
+        assert "Illegal instruction" in app.actual.texto and "UPower" not in app.actual.texto
         app.sacar()
         config.guardar_opcion("KODI_COMPATIBLE", "no")
         shutil.which = viejo_which

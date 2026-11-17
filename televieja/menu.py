@@ -725,17 +725,33 @@ class App:
             self.poner(Calibrar("Encontré un joystick nuevo: vamos a configurarlo."))
 
 
+# Avisos que Kodi siempre escribe en una netbook así y no tienen que ver con que se cierre
+AVISOS_INOFENSIVOS = ("upower", "vdpau", "syncinstalled", "activeae", "cec", "libva",
+                      "pipewire", "failed to open", "dbus", "lirc", "airplay", "zeroconf")
+
+
 def errores_kodi():
-    """Las últimas líneas de error del registro de Kodi, para mostrar en pantalla."""
+    """Por qué se cerró Kodi, para mostrar en pantalla: la señal con la que murió (si
+    murió) y las últimas líneas de su registro, sin los avisos de siempre."""
+    partes = []
+    try:
+        with open(reproducir.ruta_log("kodi"), encoding="utf-8", errors="replace") as f:
+            salida = f.read().splitlines()
+        partes += [l.strip()[:90] for l in salida
+                   if any(p in l for p in ("Segmentation", "Illegal instruction", "Aborted",
+                                           "Killed", "terminate", "crash", "Crash"))][-2:]
+    except OSError:
+        pass
     ruta = os.path.join(os.path.expanduser("~"), ".kodi", "temp", "kodi.log")
     try:
         with open(ruta, encoding="utf-8", errors="replace") as f:
             lineas = f.read().splitlines()
     except OSError:
-        return ""
-    errores = [l.split(">:", 1)[-1].strip() if ">:" in l else l.strip()
-               for l in lineas if " error " in l.lower() or "fatal" in l.lower()]
-    return "\n".join(e[:90] for e in errores[-4:])
+        lineas = []
+    utiles = [l.split(">:", 1)[-1].strip() if ">:" in l else l.strip() for l in lineas
+              if l.strip() and not any(p in l.lower() for p in AVISOS_INOFENSIVOS)]
+    partes += [u[:90] for u in utiles[-3:]]
+    return "\n".join(partes)
 
 
 GUIA_KODI = (
