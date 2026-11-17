@@ -227,6 +227,18 @@ instalar_archivo "$APP/sistema/retroarch-core-options.cfg" \
     "$CASA/.config/televieja/retroarch-core-options.cfg" no-pisar
 instalar_archivo "$APP/sistema/mpv/mpv.conf" "$CASA/.config/mpv/mpv.conf"
 instalar_archivo "$APP/sistema/mpv/input.conf" "$CASA/.config/mpv/input.conf"
+# Kodi de Debian 12 se cae al arrancar con zonas horarias de tres partes
+# ("America/Argentina/Buenos_Aires not found in timezone database") cuando /etc/localtime
+# es un enlace. Con una copia del archivo lee el nombre de /etc/timezone y anda; la hora
+# es exactamente la misma.
+if [ -L /etc/localtime ]; then
+    zona_archivo=$(readlink -f /etc/localtime)
+    zona=${zona_archivo#*/zoneinfo/}
+    if [ "$zona" != "$zona_archivo" ] && [ "$(printf '%s' "$zona" | tr -cd / | wc -c)" -ge 2 ]; then
+        echo "$zona" > /etc/timezone
+        cp --remove-destination "$zona_archivo" /etc/localtime
+    fi
+fi
 # Kodi (Streaming): ajustes para la netbook y el repo de Netflix a mano (solo si no hay ya)
 sudo -u "$USUARIO" mkdir -p "$CASA/.kodi/userdata"
 for f in advancedsettings.xml sources.xml guisettings.xml; do
