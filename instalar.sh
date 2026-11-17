@@ -244,22 +244,37 @@ EOF
 PERFIL="$CASA/.bash_profile"
 touch "$PERFIL"
 chown "$USUARIO:$USUARIO" "$PERFIL"
-if ! grep -q 'TELEVIEJA' "$PERFIL"; then
-    cat >> "$PERFIL" <<'EOF'
-
+# (se reemplaza en cada instalación, así llegan los arreglos)
+sed -i '/# --- TELEVIEJA: arrancar el menú/,/# --- fin TELEVIEJA ---/d' "$PERFIL"
+cat >> "$PERFIL" <<'EOF'
 # --- TELEVIEJA: arrancar el menú en la pantalla 1 ---
 [ -f ~/.profile ] && . ~/.profile
 if [ -z "${DISPLAY:-}" ] && [ "$(tty)" = /dev/tty1 ]; then
     rm -f /tmp/televieja-terminal
+    inicio=$(date +%s)
     startx -- -nocursor >/dev/null 2>&1
-    if [ ! -e /tmp/televieja-terminal ]; then
+    if [ -e /tmp/televieja-terminal ]; then
+        echo "Saliste a la terminal. Para volver al menú escribí:  startx"
+    elif [ $(( $(date +%s) - inicio )) -lt 20 ]; then
+        # El menú no llegó a arrancar: en vez de quedarse trabado, decir por qué
+        uso=$(df --output=pcent "$HOME" | tail -n1 | tr -dc '0-9')
+        echo
+        if [ "${uso:-0}" -ge 99 ]; then
+            echo "El disco está LLENO (${uso}%): por eso no arranca el menú. Para hacer lugar:"
+            echo "   sudo apt clean"
+            echo "   du -sh ~/TeleVieja/*/* | sort -h | tail -15    (lo que más ocupa)"
+            echo "   rm -r ~/TeleVieja/Videos/Nombre                (borra esa carpeta)"
+            echo "Cuando haya lugar (df -h /home), escribí:  startx"
+        else
+            echo "El menú no pudo arrancar. Probá:  startx"
+            echo "Si sigue, mandale una foto de esto a quien te ayuda."
+        fi
+    else
         logout
     fi
-    echo "Saliste a la terminal. Para volver al menú escribí:  startx"
 fi
 # --- fin TELEVIEJA ---
 EOF
-fi
 
 verde "==> 6/7 Permisos (joystick, sonido, apagar, discos USB)..."
 usermod -aG input,audio,video "$USUARIO"
