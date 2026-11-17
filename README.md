@@ -476,6 +476,15 @@ viendo · **B sale**.
   nombre que aparece en la cortina es el de la carpeta: renombrala si querés que diga
   otra cosa (por ejemplo "One Piece" en vez del nombre del pack).
 
+### Hacer lugar en el disco
+
+*Opciones → Espacio en el disco* muestra cuánto queda libre y tus carpetas **de la más
+grande a la más chica**, con lo que ocupa cada una. **A** entra a una carpeta, **X**
+borra (pregunta antes y dice cuánto libera). También en Videos, Radio e Historietas,
+**X** sobre un capítulo o una carpeta lo borra. Solo se borra lo que está en la netbook
+(nunca en los discos USB), y no se pueden borrar las carpetas principales (Videos,
+Juegos, Canal/Tandas...), solo lo que tienen adentro.
+
 ### Marcos de la tele (estilo Super Game Boy)
 
 *Opciones → Marco de la tele*: un dibujo alrededor del video. Se ve con los videos 4:3

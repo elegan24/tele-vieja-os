@@ -19,7 +19,7 @@ from .mando import Mando  # noqa: E402
 from .pantallas import (ArchivoInicio, Calibrar, Confirmar, ControlCelular, Descargas,
                         ElegirMarco, ElegirTema, Espera, GrillaCanal,  # noqa: E402
                         Explorador, Lector, Protector, abrir_bluetooth, abrir_wifi,
-                        Item, Lista, YoutubeInicio,
+                        Item, Lista, YoutubeInicio, abrir_espacio,
                         ListaSistemas, Mensaje)
 from .ui import ANCHO, ALTO, MARGEN_X, MARGEN_Y  # noqa: E402
 
@@ -732,6 +732,7 @@ def menu_principal(app):
             "¿Buscar y instalar la última versión?", actualizar)), icono="bajar"),
         Item("Configurar joystick", ir(lambda: Calibrar()), icono="joystick"),
         Item("Copiar desde pendrive", copiar_pendrive, icono="usb"),
+        Item("Espacio en el disco", abrir_espacio, icono="disco"),
         Item("WiFi", abrir_wifi, icono="celular"),
         Item("Auriculares Bluetooth", abrir_bluetooth, icono="nota"),
         Item("Grilla del canal", ir(GrillaCanal), icono="reloj"),

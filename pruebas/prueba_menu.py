@@ -851,6 +851,89 @@ def probar_marco_menu(app, paso, foto):
         app.sacar()
 
 
+def probar_espacio(app, paso, foto):
+    """Espacio en el disco: tamaños, qué se puede borrar y borrar con X (en Espacio y en Videos)."""
+    from televieja import espacio
+    assert espacio.legible(1234567890) == "1,1 GB" and espacio.legible(5 * 1024 ** 3) == "5 GB"
+    assert espacio.legible(350 * 1024 ** 2) == "350 MB"
+    R = config.RAIZ
+    assert not espacio.se_puede_borrar(R)
+    for protegida in ("Videos", "Juegos", "Juegos/Family", "Canal/Tandas", "Historietas", "Marcos"):
+        assert not espacio.se_puede_borrar(os.path.join(R, protegida)), protegida
+    assert espacio.se_puede_borrar(os.path.join(R, "Videos", "Los Simpsons"))
+    assert espacio.se_puede_borrar(os.path.join(R, "Dale Play"))                  # suelta
+    assert not espacio.se_puede_borrar(os.path.join(MONTAJES, "1234-ABCD", "TeleVieja", "Videos"))
+    grande = os.path.join(R, "Videos", "Serie Para Borrar")
+    os.makedirs(grande, exist_ok=True)
+    with open(os.path.join(grande, "Capitulo 1.mp4"), "wb") as f:
+        f.write(b"\0" * 3 * 1024 * 1024)
+    with open(os.path.join(grande, "Capitulo 2.mp4"), "wb") as f:
+        f.write(b"\0" * 1024 * 1024)
+
+    def esperar(condicion):
+        fin = time.time() + 8
+        while time.time() < fin and not condicion():
+            app.vuelta(0.05)
+            time.sleep(0.02)
+        assert condicion(), app.actual
+
+    while len(app.pila) > 1:
+        app.sacar()
+    # Opciones > Espacio en el disco: lo más grande primero
+    pantallas.abrir_espacio(app)
+    esperar(lambda: isinstance(app.actual, pantallas.EspacioDisco))
+    espacio_pantalla = app.actual
+    assert app.actual.items[0].texto == "Videos", [it.texto for it in app.actual.items]
+    assert app.actual.titulo.startswith("Libre: ")
+    paso("a")                                            # entra a Videos
+    textos = [it.texto for it in app.actual.items]
+    assert textos[0] == "Serie Para Borrar" and app.actual.items[0].extra == "4 MB", textos
+    foto("36-espacio")
+    antes = espacio_pantalla.tamanos[os.path.join(R, "Videos")]
+    paso("x")                                            # borrar la serie entera
+    esperar(lambda: isinstance(app.actual, pantallas.Confirmar))
+    assert "Libera 4 MB" in app.actual.pregunta, app.actual.pregunta
+    app.actual.opcion = 0
+    paso("a")
+    esperar(lambda: app.actual is espacio_pantalla and not os.path.exists(grande))
+    assert espacio_pantalla.tamanos[os.path.join(R, "Videos")] == antes - 4 * 1024 * 1024
+    assert "Serie Para Borrar" not in [it.texto for it in app.actual.items]
+    assert app.aviso == "Liberaste 4 MB", app.aviso
+    paso("b")
+    # las carpetas principales no se borran
+    app.actual.sel = [it.texto for it in app.actual.items].index("Videos")
+    paso("x")
+    assert isinstance(app.actual, pantallas.EspacioDisco) and "sistema" in app.aviso, app.aviso
+    while len(app.pila) > 1:
+        app.sacar()
+    # En Videos, X sobre un capítulo lo borra
+    otro = os.path.join(R, "Videos", "Para Borrar 2")
+    tocar(os.path.join(otro, "Capitulo 1.mp4"))
+    tocar(os.path.join(otro, "Capitulo 2.mp4"))
+    explorador = pantallas.Explorador("video", "Videos", config.EXT_VIDEO)
+    app.poner(explorador)
+    explorador.sel = [it.texto for it in explorador.items].index("Para Borrar 2")
+    paso("a")
+    explorador.sel = [it.texto for it in explorador.items].index("Capitulo 2")
+    paso("x")
+    assert isinstance(app.actual, pantallas.Confirmar)
+    app.actual.opcion = 0
+    paso("a")
+    esperar(lambda: app.actual is explorador and not os.path.exists(os.path.join(otro, "Capitulo 2.mp4")))
+    assert [it.texto for it in explorador.items] == ["Capitulo 1"], [it.texto for it in explorador.items]
+    # en un disco USB, X no borra
+    explorador.historial.clear()
+    explorador.carpeta = explorador.raiz
+    explorador.cargar()
+    explorador.sel = [it.texto for it in explorador.items].index("Disco: 1234-ABCD")
+    paso("a")
+    explorador.sel = 0
+    paso("x")
+    assert app.actual is explorador and "USB" in app.aviso, app.aviso
+    while len(app.pila) > 1:
+        app.sacar()
+
+
 def probar_wifi(app, paso, foto):
     """Opciones > WiFi con redes de mentira (acá no hay NetworkManager)."""
     llamadas = []
@@ -1121,6 +1204,7 @@ game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 c
     probar_archivo(app, paso, foto)
     probar_marco_menu(app, paso, foto)
     probar_youtube(app, paso, foto)
+    probar_espacio(app, paso, foto)
     app.poner(pantallas.Calibrar("Encontré un joystick nuevo: vamos a configurarlo."))
     foto("13-calibrar")
     paso("b")  # (Calibrar ignora botones traducidos; sacamos a mano)

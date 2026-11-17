@@ -393,14 +393,15 @@ class Explorador(Lista):
                 if de_disco:
                     nombre += " (disco)"
                 self.items.append(Item(nombre, lambda app, c=c, n=nombre: self.entrar(app, c, n),
-                                       icono="carpeta"))
+                                       icono="carpeta", dato=c))
         for c in carpetas:
             nombre = os.path.basename(c)
             if self.tipo == "historieta" and historietas.es_carpeta_historieta(c):
                 self.items.append(Item(nombre, lambda app, c=c: abrir_historieta(app, c),
-                                       icono="libro"))
+                                       icono="libro", dato=c))
             else:
-                self.items.append(Item(nombre, lambda app, c=c: self.entrar(app, c), icono="carpeta"))
+                self.items.append(Item(nombre, lambda app, c=c: self.entrar(app, c), icono="carpeta",
+                                       dato=c))
         progreso = historietas.leer_progreso() if self.tipo == "historieta" else {}
         for i, a in enumerate(archivos):
             extra = ""
@@ -414,11 +415,11 @@ class Explorador(Lista):
             texto = ((por_episodio and config.etiqueta_episodio(nombre))
                      or (config.titulo_episodio(nombre) if self.tipo == "video"
                          else config.nombre_lindo(nombre)))
-            self.items.append(Item(texto, accion, icono=icono_archivo, extra=extra))
+            self.items.append(Item(texto, accion, icono=icono_archivo, extra=extra, dato=a))
         for i, im in enumerate(imagenes):  # fondos de pantalla, pósters, fotos...
             self.items.append(Item(os.path.splitext(os.path.basename(im))[0],
                                    lambda app, i=i, imagenes=imagenes: app.poner(Fotos(imagenes, i)),
-                                   icono="foto"))
+                                   icono="foto", dato=im))
         if not self.items:
             self.items.append(Item("(vacío)", apagado=True))
             if self.historial:
@@ -426,7 +427,9 @@ class Explorador(Lista):
             else:
                 self.ayuda = "Cargá cosas en TeleVieja/" + self.subcarpeta
         else:
-            self.ayuda = "A: elegir    B: volver    L/R: letra"
+            self.ayuda = "A: elegir  X: borrar  B: volver"
+            if not self.carpeta.startswith(config.RAIZ):
+                self.ayuda = "A: elegir    B: volver    L/R: letra"   # disco USB: no se borra
         self.sel = min(self.recuerdo.get(self.carpeta, 0), len(self.items) - 1)
         self.primero = 0
         self.ajustar()
@@ -437,6 +440,20 @@ class Explorador(Lista):
         self.titulo = titulo or os.path.basename(carpeta)
         self.cargar()
         app.sucio = True
+
+    def accion(self, app, boton):
+        if boton == "x" and self.items and self.items[self.sel].dato:
+            sel = self.sel
+            ruta = self.items[self.sel].dato
+
+            def despues(app, liberado):
+                self.cargar()
+                self.sel = min(sel, len(self.items) - 1)
+                self.ajustar()
+                app.sucio = True
+            borrar_con_confirmacion(app, ruta, despues)
+        else:
+            super().accion(app, boton)
 
     def volver(self, app):
         if not self.historial:
@@ -1997,3 +2014,109 @@ class YoutubeResultados(Lista):
         # desde el elegido, siguen los demás resultados (como una lista de reproducción)
         lista = youtube.lista_m3u(self.videos[i:])
         app.lanzar_mpv(reproducir.orden_youtube(lista), reproducir.control_videos)
+
+
+# --- espacio en el disco: ver qué ocupa y borrar ------------------------------
+def borrar_con_confirmacion(app, ruta, despues):
+    """Pregunta (con el tamaño) y borra en segundo plano. despues(app, liberado) recarga."""
+    from . import espacio
+    if not ruta:
+        return
+    if not espacio.se_puede_borrar(ruta):
+        app.avisar("En los discos USB no se borra nada" if not ruta.startswith(config.RAIZ)
+                   else "Carpeta del sistema: no se borra")
+        return
+    nombre = os.path.basename(ruta.rstrip(os.sep))
+
+    def preguntar(app, bytes_, error):
+        texto = "¿Borrar \"%s\"? Libera %s. No se puede deshacer." % (nombre, espacio.legible(bytes_ or 0))
+
+        def si(app):
+            def listo(app, liberado, error):
+                if error:
+                    app.poner(Mensaje("No se pudo borrar", str(error)))
+                    liberado = 0
+                else:
+                    app.avisar("Liberaste %s" % espacio.legible(liberado))
+                despues(app, liberado)
+            app.poner(Espera("Borrando", "Borrando %s..." % nombre, lambda: espacio.borrar(ruta), listo))
+        app.poner(Confirmar(texto, si))
+    if os.path.isdir(ruta):
+        app.poner(Espera("Borrar", "Midiendo cuánto ocupa...", lambda: espacio.tamano(ruta), preguntar))
+    else:
+        preguntar(app, espacio.tamano(ruta), None)
+
+
+def abrir_espacio(app):
+    from . import espacio
+
+    def listo(app, tamanos, error):
+        if error:
+            app.poner(Mensaje("Espacio en el disco", str(error)))
+        else:
+            app.poner(EspacioDisco(tamanos))
+    app.poner(Espera("Espacio en el disco", "Midiendo qué ocupa cada cosa...",
+                     espacio.tamanos_de_carpetas, listo))
+
+
+class EspacioDisco(Lista):
+    """Lo que hay en TeleVieja, lo más grande primero. A entra, X borra, B vuelve."""
+
+    def __init__(self, tamanos):
+        super().__init__("Espacio", ayuda="A: entrar  X: borrar  B: volver")
+        self.tamanos = tamanos
+        self.carpeta = config.RAIZ
+        self.pila_carpetas = []
+        self.cargar()
+
+    def cargar(self):
+        from . import espacio
+        libre, total = espacio.libre()
+        self.titulo = "Libre: %s de %s" % (espacio.legible(libre), espacio.legible(total))
+        if self.carpeta != config.RAIZ:
+            self.titulo = os.path.basename(self.carpeta)
+        self.items = []
+        for nombre, ruta, es_carpeta, bytes_ in espacio.contenido(self.carpeta, self.tamanos):
+            accion = (lambda app, r=ruta: self._entrar(app, r)) if es_carpeta else None
+            self.items.append(Item(nombre, accion, icono="carpeta" if es_carpeta else "play",
+                                   extra=espacio.legible(bytes_), dato=ruta))
+        if not self.items:
+            self.items.append(Item("(vacía)", apagado=True))
+        self.ajustar()
+
+    def _entrar(self, app, ruta):
+        self.pila_carpetas.append((self.carpeta, self.sel))
+        self.carpeta = ruta
+        self.sel = 0
+        self.cargar()
+        app.sucio = True
+
+    def _despues_de_borrar(self, ruta):
+        def despues(app, liberado):
+            if not os.path.exists(ruta):
+                self.tamanos.pop(ruta, None)
+                carpeta = self.carpeta   # le resto lo liberado a esta carpeta y a las de arriba
+                while True:
+                    self.tamanos[carpeta] = max(0, self.tamanos.get(carpeta, 0) - liberado)
+                    if carpeta == config.RAIZ or not carpeta.startswith(config.RAIZ):
+                        break
+                    carpeta = os.path.dirname(carpeta)
+            self.cargar()
+            app.sucio = True
+        return despues
+
+    def accion(self, app, boton):
+        if boton == "x" and self.items and self.items[self.sel].dato:
+            ruta = self.items[self.sel].dato
+            borrar_con_confirmacion(app, ruta, self._despues_de_borrar(ruta))
+        else:
+            super().accion(app, boton)
+
+    def volver(self, app):
+        if self.pila_carpetas:
+            app.sonido.tocar("volver")
+            self.carpeta, self.sel = self.pila_carpetas.pop()
+            self.cargar()
+            app.sucio = True
+        else:
+            super().volver(app)
