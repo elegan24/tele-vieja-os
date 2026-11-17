@@ -160,8 +160,10 @@ fi
 # complementos). Para no instalarlo:  sudo SIN_KODI=1 ./instalar.sh
 if [ "${SIN_KODI:-0}" != 1 ]; then
     verde "   Instalando Kodi (streaming experimental)..."
+    # kodi-repository-kodi: el repositorio oficial (de ahí salen los complementos que piden
+    # Netflix y compañía); python3-pycryptodome: lo que pide Netflix, desde Debian
     apt-get install -y "${APT_OPCIONES[@]}" --no-install-recommends kodi kodi-inputstream-adaptive \
-        kodi-peripheral-joystick \
+        kodi-peripheral-joystick kodi-repository-kodi python3-pycryptodome \
         || { amarillo "   No se pudo instalar Kodi: el Streaming no va a andar."; FALTARON+=("Kodi"); }
 fi
 
@@ -244,6 +246,10 @@ sudo -u "$USUARIO" mkdir -p "$CASA/.kodi/userdata"
 for f in advancedsettings.xml sources.xml guisettings.xml; do
     instalar_archivo "$APP/sistema/kodi/$f" "$CASA/.kodi/userdata/$f" no-pisar
 done
+# "Puente" para que Netflix encuentre pycryptodome (el repo de Kodi no lo tiene para Linux)
+PUENTE="$CASA/.kodi/addons/script.module.pycryptodome"
+sudo -u "$USUARIO" mkdir -p "$PUENTE/lib"
+instalar_archivo "$APP/sistema/kodi/script.module.pycryptodome/addon.xml" "$PUENTE/addon.xml"
 install -o "$USUARIO" -g "$USUARIO" -m 755 "$APP/sistema/xinitrc" "$CASA/.xinitrc"
 
 verde "==> 5/7 Arranque automático (sin pedir contraseña)..."

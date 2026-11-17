@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- Netflix (CastagnaIT) pide el complemento script.module.pycryptodome, que el repositorio
+     de Kodi no tiene para Linux. Este "puente" usa el de Debian (python3-pycryptodome). -->
+<addon id="script.module.pycryptodome" name="PyCryptodome (del sistema)" version="3.20.0"
+       provider-name="Frecuencia 99">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.python.module" library="lib"/>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="es_ES">Usa el pycryptodome de Debian (python3-pycryptodome)</summary>
+    <platform>linux</platform>
+  </extension>
+</addon>
