@@ -1,0 +1,12 @@
+<!-- Kodi en la netbook de Frecuencia 99: redibuja solo lo que cambia (menos procesador)
+     y usa poca memoria para el búfer de video. -->
+<advancedsettings version="1.0">
+  <gui>
+    <algorithmdirtyregions>3</algorithmdirtyregions>
+    <nofliptimeout>0</nofliptimeout>
+  </gui>
+  <cache>
+    <memorysize>31457280</memorysize>
+    <readfactor>4</readfactor>
+  </cache>
+</advancedsettings>

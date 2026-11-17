@@ -72,6 +72,19 @@ def orden_internet(lista_m3u):
                          "--cache-secs=60", "--playlist=" + lista_m3u]
 
 
+def orden_youtube(lista_m3u):
+    """YouTube: mpv lo abre con nuestro yt-dlp, en 360p, directo por internet."""
+    from . import youtube
+    return mpv_base() + youtube.opciones_mpv() + [
+        "--save-position-on-quit", "--network-timeout=40", "--cache-secs=60",
+        "--playlist=" + lista_m3u]
+
+
+def control_kodi(boton):
+    """Mientras corre Kodi, el botón Inicio del celu lo cierra (Kodi se maneja solo)."""
+    return boton == "inicio"
+
+
 def orden_radio(archivos):
     return mpv_base() + [
         "--save-position-on-quit", "--force-window=immediate", "--osd-level=3",

@@ -730,7 +730,11 @@ def probar_archivo(app, paso, foto):
         while len(app.pila) > 1:
             app.sacar()
         principal = app.pila[0]
-        principal.sel = [it.texto for it in principal.items].index("Internet Archive")
+        principal.sel = [it.texto for it in principal.items].index("Internet")
+        paso("a")
+        assert [it.texto for it in app.actual.items] == ["Internet Archive", "YouTube", "Streaming"]
+        foto("33-internet")
+        app.actual.sel = 0
         paso("a")
         assert isinstance(app.actual, pantallas.ArchivoInicio)
         foto("30-archivo")
@@ -758,6 +762,72 @@ def probar_archivo(app, paso, foto):
     finally:
         archivo.buscar, archivo.videos = viejos
         app.lanzar = viejo_lanzar
+        while len(app.pila) > 1:
+            app.sacar()
+
+
+def probar_youtube(app, paso, foto):
+    """YouTube con respuestas de mentira (la prueba no usa internet) y Kodi sin Kodi."""
+    import shutil
+    from televieja import reproducir, youtube
+    datos = {"entries": [
+        {"id": "aaa", "title": "TELEFE 1991 - Tandas", "duration": 3281, "channel": "Canal"},
+        {"id": "bbb", "title": "Un short", "duration": 40},
+        {"id": "ccc", "title": "En vivo", "duration": None, "live_status": "is_live"},
+        {"id": "ddd", "title": "Dibujos clásicos", "duration": 600}]}
+    videos = youtube.interpretar(datos)
+    assert [v["id"] for v in videos] == ["aaa", "ddd"], videos
+    assert videos[0]["duracion"] == "54:41" and videos[1]["duracion"] == "10:00"
+    assert videos[0]["url"] == "https://www.youtube.com/watch?v=aaa"
+    orden = reproducir.orden_youtube(youtube.lista_m3u(videos))
+    assert "--ytdl=yes" in orden and any(o.startswith("--ytdl-format=") and "360" in o for o in orden)
+    assert any("ytdl_hook-ytdl_path=" in o for o in orden) and \
+        any(o == "--ytdl-raw-options-append=cookies=" + youtube.ARCHIVO_COOKIES for o in orden), orden
+    assert "PREF\tf2=8000000" in open(youtube.ARCHIVO_COOKIES).read()
+
+    viejo_buscar, viejo_lanzar = youtube.buscar, app.lanzar
+    youtube.buscar = lambda texto, cantidad=30: videos
+    lanzados = []
+    app.lanzar = lambda orden, *a, **k: (lanzados.append((orden, a, k)), (0, 10.0, ""))[1]
+    try:
+        while len(app.pila) > 1:
+            app.sacar()
+        app.poner(pantallas.YoutubeInicio())
+        assert app.actual.items[0].texto == "Buscar..."
+        app.actual.sel = [it.texto for it in app.actual.items].index(youtube.SUGERENCIAS[1])
+        paso("a")
+        fin = time.time() + 5
+        while time.time() < fin and not isinstance(app.actual, pantallas.YoutubeResultados):
+            app.vuelta(0.05)
+            time.sleep(0.02)
+        assert isinstance(app.actual, pantallas.YoutubeResultados)
+        assert [it.extra for it in app.actual.items] == ["54:41", "10:00"]
+        foto("34-youtube")
+        app.actual.sel = 1
+        paso("a")
+        m3u = open([o for o in lanzados[-1][0] if o.startswith("--playlist=")][0][11:]).read()
+        assert "watch?v=ddd" in m3u and "watch?v=aaa" not in m3u
+        app.sacar()
+        assert app.actual.items[1].texto == youtube.SUGERENCIAS[1] and app.actual.items[1].extra == "reciente"
+        # Kodi: si no está, avisa; si está, la primera vez explica y después abre
+        while len(app.pila) > 1:
+            app.sacar()
+        viejo_which = shutil.which
+        shutil.which = lambda nombre: None
+        app.kodi()
+        assert isinstance(app.actual, pantallas.Mensaje) and app.actual.titulo_caja == "Falta Kodi"
+        app.sacar()
+        shutil.which = lambda nombre: "/usr/bin/" + nombre
+        app.kodi()
+        assert isinstance(app.actual, pantallas.Mensaje) and "Netflix" in app.actual.texto
+        foto("35-streaming")
+        paso("a")                                  # cierra la guía y abre Kodi
+        assert lanzados[-1][0] == ["kodi", "-fs"] and lanzados[-1][2].get("combo_salida")
+        app.kodi()                                 # la segunda vez, directo
+        assert len(app.pila) == 1 and lanzados[-1][0] == ["kodi", "-fs"]
+        shutil.which = viejo_which
+    finally:
+        youtube.buscar, app.lanzar = viejo_buscar, viejo_lanzar
         while len(app.pila) > 1:
             app.sacar()
 
@@ -1050,6 +1120,7 @@ game (\n\tname "Metal Slug - Super Vehicle-001"\n\trom ( name mslug.zip size 1 c
     probar_grilla_menu(app, paso, foto)
     probar_archivo(app, paso, foto)
     probar_marco_menu(app, paso, foto)
+    probar_youtube(app, paso, foto)
     app.poner(pantallas.Calibrar("Encontré un joystick nuevo: vamos a configurarlo."))
     foto("13-calibrar")
     paso("b")  # (Calibrar ignora botones traducidos; sacamos a mano)

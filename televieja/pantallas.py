@@ -1940,3 +1940,60 @@ class ElegirMarco(Lista):
         app.avisar("Sin marco" if nombre == "ninguno" else "Marco: " + nombre.replace("_", " "))
         self.cargar()
         app.sucio = True
+
+
+# --- YouTube ------------------------------------------------------------------
+class YoutubeInicio(Lista):
+    """YouTube liviano: buscar, búsquedas recientes y sugerencias."""
+
+    def __init__(self):
+        super().__init__("YouTube", ayuda="A: elegir  B: volver")
+        self.cargar()
+
+    def cargar(self):
+        from . import youtube
+        self.items = [Item("Buscar...", self._buscar, icono="mundo")]
+        for t in youtube.recientes():
+            self.items.append(Item(t, lambda app, t=t: buscar_youtube(app, t), icono="reloj",
+                                   extra="reciente"))
+        for t in youtube.SUGERENCIAS:
+            self.items.append(Item(t, lambda app, t=t: buscar_youtube(app, t), icono="play"))
+        self.ajustar()
+
+    def _buscar(self, app):
+        def listo(app, texto):
+            if texto.strip():
+                buscar_youtube(app, texto.strip())
+        app.poner(Teclado("¿Qué querés ver en YouTube?", listo))
+
+    def al_volver(self, app):
+        self.cargar()
+        app.sucio = True
+
+
+def buscar_youtube(app, texto):
+    from . import youtube
+
+    def listo(app, videos, error):
+        if error:
+            app.poner(Mensaje("YouTube", str(error)))
+        elif not videos:
+            app.poner(Mensaje("YouTube", "No encontré videos con \"%s\"." % texto))
+        else:
+            youtube.anotar_busqueda(texto)
+            app.poner(YoutubeResultados(texto, videos))
+    app.poner(Espera("YouTube", "Buscando...", lambda: youtube.buscar(texto), listo))
+
+
+class YoutubeResultados(Lista):
+    def __init__(self, texto, videos):
+        super().__init__(texto, ayuda="A: ver  B: volver  L/R: letra")
+        self.videos = videos
+        self.items = [Item(v["titulo"], lambda app, i=i: self._ver(app, i), icono="play",
+                           extra=v["duracion"]) for i, v in enumerate(videos)]
+
+    def _ver(self, app, i):
+        from . import youtube
+        # desde el elegido, siguen los demás resultados (como una lista de reproducción)
+        lista = youtube.lista_m3u(self.videos[i:])
+        app.lanzar_mpv(reproducir.orden_youtube(lista), reproducir.control_videos)

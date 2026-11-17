@@ -19,7 +19,7 @@ from .mando import Mando  # noqa: E402
 from .pantallas import (ArchivoInicio, Calibrar, Confirmar, ControlCelular, Descargas,
                         ElegirMarco, ElegirTema, Espera, GrillaCanal,  # noqa: E402
                         Explorador, Lector, Protector, abrir_bluetooth, abrir_wifi,
-                        Item, Lista,
+                        Item, Lista, YoutubeInicio,
                         ListaSistemas, Mensaje)
 from .ui import ANCHO, ALTO, MARGEN_X, MARGEN_Y  # noqa: E402
 
@@ -519,6 +519,33 @@ class App:
         elif rc != 0 and duracion < 5:
             self.poner(Mensaje("No se pudo abrir el juego", self._ultimas_lineas("pc")))
 
+    def kodi(self):
+        """Streaming (experimental): Kodi con los complementos de Netflix, Prime Video...
+        La primera vez muestra cómo instalarlos."""
+        import shutil
+        if not shutil.which("kodi"):
+            self.poner(Mensaje("Falta Kodi", "Entrá a Opciones → Actualizar con internet: ahí "
+                                             "se instala Kodi."))
+            return
+        marca = os.path.join(config.CONFIG_DIR, "kodi-visto")
+
+        def abrir(app):
+            try:
+                os.makedirs(config.CONFIG_DIR, exist_ok=True)
+                open(marca, "w").close()
+            except OSError:
+                pass
+            rc, duracion, error = app.lanzar(["kodi", "-fs"], reproducir.control_kodi, "kodi",
+                                             combo_salida=True)
+            if rc is None:
+                app.poner(Mensaje("No se pudo abrir Kodi", error))
+            elif rc not in (0, 64, 66) and duracion < 5:
+                app.poner(Mensaje("No se pudo abrir Kodi", app._ultimas_lineas("kodi")))
+        if os.path.exists(marca):
+            abrir(self)
+        else:
+            self.poner(Mensaje("Streaming (experimental)", GUIA_KODI, al_cerrar=abrir))
+
     def canal(self):
         """Arma la programación (puede tardar con miles de capítulos) y prende el canal."""
         def listo(app, lista, error):
@@ -681,9 +708,23 @@ class App:
             self.poner(Calibrar("Encontré un joystick nuevo: vamos a configurarlo."))
 
 
+GUIA_KODI = (
+    "Se abre Kodi (se maneja con el joystick). Para Netflix: Complementos → Instalar desde "
+    "archivo zip → \"Repo Netflix (CastagnaIT)\" → repository.castagnait. Después: Instalar "
+    "desde repositorio → CastagnaIT → Complementos de video → Netflix, y entrá con tu cuenta. "
+    "Prime Video y Crunchyroll tienen complementos parecidos. Para volver: SELECT+START 3 "
+    "segundos. Ojo: en esta netbook puede andar lento.")
+
+
 def menu_principal(app):
     def ir(pantalla_fabrica):
         return lambda app: app.poner(pantalla_fabrica())
+
+    internet = Lista("Internet", [
+        Item("Internet Archive", ir(ArchivoInicio), icono="mundo", extra="cosas viejas"),
+        Item("YouTube", ir(YoutubeInicio), icono="play"),
+        Item("Streaming", lambda app: app.kodi(), icono="tele", extra="experimental"),
+    ], ayuda="A: elegir  B: volver")
 
     opciones = Lista("Opciones", [
         Item("Configurar joystick", ir(lambda: Calibrar()), icono="joystick"),
@@ -710,7 +751,7 @@ def menu_principal(app):
         Item("Historietas", ir(lambda: Explorador("historieta", "Historietas", config.EXT_HISTORIETA)),
              icono="libro"),
         Item("Radio", ir(lambda: Explorador("radio", "Radio", config.EXT_AUDIO)), icono="nota"),
-        Item("Internet Archive", ir(ArchivoInicio), icono="mundo"),
+        Item("Internet", lambda app: app.poner(internet), icono="mundo"),
         Item("Opciones", lambda app: app.poner(opciones), icono="engranaje"),
         Item("Apagar", lambda app: app.poner(Confirmar("¿Apagar Frecuencia 99?",
                                                        lambda a: a.sistema("poweroff"))),

@@ -122,6 +122,11 @@ if [ -x "$APP/pyenv/bin/pip" ]; then
     "$APP/pyenv/bin/pip" install --quiet --disable-pip-version-check "gdown==5.2.0" \
         && echo "   gdown listo (descargas de Google Drive)." \
         || amarillo "   No pude instalar gdown: las descargas de Drive no van a andar."
+    # yt-dlp (YouTube) y deno (el motor de JavaScript que YouTube le exige): siempre la
+    # última versión, porque YouTube cambia seguido y las viejas dejan de andar
+    "$APP/pyenv/bin/pip" install --quiet --disable-pip-version-check -U "yt-dlp[default]" deno \
+        && echo "   yt-dlp listo (YouTube)." \
+        || amarillo "   No pude instalar yt-dlp: YouTube no va a andar."
 fi
 
 # Nombres completos de los juegos de arcade ("sfa.zip" -> "Street Fighter Alpha")
@@ -149,6 +154,15 @@ if [ "${SIN_WINE:-0}" != 1 ]; then
         apt-get install -y "${APT_OPCIONES[@]}" --no-install-recommends wine wine32 fonts-wine libasound2-plugins \
             || amarillo "   No se pudo instalar Wine: los juegos de PC no van a andar."
     fi
+fi
+
+# Kodi, para el Streaming experimental (Netflix, Prime Video, Crunchyroll con sus
+# complementos). Para no instalarlo:  sudo SIN_KODI=1 ./instalar.sh
+if [ "${SIN_KODI:-0}" != 1 ]; then
+    verde "   Instalando Kodi (streaming experimental)..."
+    apt-get install -y "${APT_OPCIONES[@]}" --no-install-recommends kodi kodi-inputstream-adaptive \
+        kodi-peripheral-joystick \
+        || amarillo "   No se pudo instalar Kodi: el Streaming no va a andar."
 fi
 
 verde "==> 4/7 Creando carpetas en $CASA/TeleVieja..."
@@ -213,6 +227,11 @@ instalar_archivo "$APP/sistema/retroarch-core-options.cfg" \
     "$CASA/.config/televieja/retroarch-core-options.cfg" no-pisar
 instalar_archivo "$APP/sistema/mpv/mpv.conf" "$CASA/.config/mpv/mpv.conf"
 instalar_archivo "$APP/sistema/mpv/input.conf" "$CASA/.config/mpv/input.conf"
+# Kodi (Streaming): ajustes para la netbook y el repo de Netflix a mano (solo si no hay ya)
+sudo -u "$USUARIO" mkdir -p "$CASA/.kodi/userdata"
+for f in advancedsettings.xml sources.xml guisettings.xml; do
+    instalar_archivo "$APP/sistema/kodi/$f" "$CASA/.kodi/userdata/$f" no-pisar
+done
 install -o "$USUARIO" -g "$USUARIO" -m 755 "$APP/sistema/xinitrc" "$CASA/.xinitrc"
 
 verde "==> 5/7 Arranque automático (sin pedir contraseña)..."

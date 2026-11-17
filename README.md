@@ -16,7 +16,7 @@ y escuchar radionovelas. Todo se maneja con un joystick USB.
  │  🎮 Juegos                    │
  │  📖 Historietas               │
  │  ♪  Radio                     │
- │  🌐 Internet Archive          │
+ │  🌐 Internet                  │
  │  ⚙  Opciones                  │
  │  ⏻  Apagar                    │
  └───────────────────────────────┘
@@ -498,7 +498,38 @@ Para agregar uno tuyo, creá una carpeta en `TeleVieja/Marcos` (por ejemplo
 Conviene dibujarlos en 16:9 (por ejemplo 1280×720) con lo importante cerca del centro:
 en la tele de tubo (4:3) se recortan un poco los costados.
 
-### Internet Archive
+### Internet
+
+*Menú → Internet* junta lo que se mira por internet: **Internet Archive**, **YouTube** y
+**Streaming (experimental)**.
+
+#### YouTube
+
+Buscás con el teclado en pantalla (o elegís una sugerencia / búsqueda reciente) y se ve
+en **360p**, que la netbook reproduce sin trabarse y en la tele de tubo se ve bien. Al
+terminar un video siguen los demás resultados. Busca en el "modo restringido" de
+YouTube. Usa **yt-dlp** y **deno**, que se instalan y actualizan solos con
+*Opciones → Actualizar* (YouTube cambia seguido: si deja de andar, actualizá).
+
+#### Streaming (experimental): Netflix, Prime Video, Crunchyroll
+
+Abre **Kodi**, que se maneja con el joystick. Esos servicios no tienen app para esta
+netbook: Kodi usa complementos de la comunidad (no oficiales) con tu cuenta. En una
+netbook como la Cristina **puede andar lento**; con una compu más nueva anda mejor.
+HBO Max, Paramount+ y ViX no tienen complementos que anden.
+
+- **Netflix:** en Kodi, *Complementos → Instalar desde archivo zip → "Repo Netflix
+  (CastagnaIT)" → repository.castagnait*. Después *Instalar desde repositorio →
+  CastagnaIT Repository → Complementos de video → Netflix* y entrá con tu cuenta. La
+  primera vez que reproduzcas, Kodi pide instalar "Widevine": decile que sí.
+- **Prime Video:** complemento "Amazon VOD" del repositorio de Sandmann79
+  (github.com/Sandmann79/xbmc).
+- **Crunchyroll:** complemento de smirgol (github.com/smirgol/plugin.video.crunchyroll).
+- **Kodi en español:** *Ajustes → Interfaz → Regional → Idioma*.
+- **Volver al menú:** el botón de apagado de Kodi → *Salir*, o SELECT+START 3 segundos,
+  o Inicio en el celu.
+
+#### Internet Archive
 
 Miles de dibujos animados, series, películas y publicidades viejas de
 [archive.org](https://archive.org), una biblioteca gratis y legal. Se miran directo por

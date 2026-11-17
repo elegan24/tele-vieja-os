@@ -1,0 +1,11 @@
+<!-- Aparece en Complementos → Instalar desde archivo zip -->
+<sources>
+  <files>
+    <default pathversion="1"></default>
+    <source>
+      <name>Repo Netflix (CastagnaIT)</name>
+      <path pathversion="1">https://castagnait.github.io/repository.castagnait/</path>
+      <allowsharing>true</allowsharing>
+    </source>
+  </files>
+</sources>
