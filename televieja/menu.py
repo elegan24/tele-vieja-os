@@ -727,6 +727,8 @@ def menu_principal(app):
     ], ayuda="A: elegir  B: volver")
 
     opciones = Lista("Opciones", [
+        Item("Actualizar Frecuencia 99", lambda app: app.poner(Confirmar(
+            "¿Buscar y instalar la última versión?", actualizar)), icono="bajar"),
         Item("Configurar joystick", ir(lambda: Calibrar()), icono="joystick"),
         Item("Copiar desde pendrive", copiar_pendrive, icono="usb"),
         Item("WiFi", abrir_wifi, icono="celular"),
@@ -737,8 +739,6 @@ def menu_principal(app):
         Item("Control desde el celular", ir(ControlCelular), icono="celular"),
         Item("Descargas", ir(Descargas), icono="bajar"),
         Item("Cambiar pantalla (tele / netbook)", lambda app: app.cambiar_pantalla(), icono="tele"),
-        Item("Actualizar Frecuencia 99", lambda app: app.poner(Confirmar(
-            "¿Buscar y instalar la última versión?", actualizar)), icono="bajar"),
         Item("Reiniciar", lambda app: app.poner(Confirmar("¿Reiniciar?", lambda a: a.sistema("reboot"))),
              icono="flecha"),
         Item("Salir a la terminal", lambda app: app.salir_a_terminal(), icono="engranaje"),
