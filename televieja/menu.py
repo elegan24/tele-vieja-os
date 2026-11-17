@@ -524,8 +524,9 @@ class App:
         La primera vez muestra cómo instalarlos."""
         import shutil
         if not shutil.which("kodi"):
-            self.poner(Mensaje("Falta Kodi", "Entrá a Opciones → Actualizar con internet: ahí "
-                                             "se instala Kodi."))
+            self.poner(Mensaje("Falta Kodi", "Kodi no está instalado. Conectate a internet y entrá "
+                                             "a Opciones → Actualizar Frecuencia 99: lo vuelve a "
+                                             "intentar. Si dice que no se pudo, mandá una foto."))
             return
         marca = os.path.join(config.CONFIG_DIR, "kodi-visto")
 
@@ -764,6 +765,7 @@ def actualizar(app):
     script = os.path.join(config.BIN_DIR, "actualizar.sh")
 
     espera = None
+    faltas = []   # lo que el instalador no pudo instalar (Kodi, Wine...)
 
     def trabajo():
         """Corre la actualización y va mostrando en qué paso está."""
@@ -775,6 +777,8 @@ def actualizar(app):
             linea = re.sub(r"\x1b\[[0-9;]*m", "", linea).strip()  # sin los colores
             if not linea:
                 continue
+            if linea.startswith("FALTA:"):
+                faltas.append(linea[6:].strip())
             lineas.append(linea)
             lineas = lineas[-50:]
             if espera is not None:
@@ -796,7 +800,13 @@ def actualizar(app):
                                   lambda a: a.sistema("reboot"))
             confirmar.opcion = 0  # "Sí" ya elegido
             confirmar.al_no = lambda a: a.reiniciar_menu()
-            app.poner(confirmar)
+            if faltas:
+                # primero avisar qué no se pudo instalar (se reintenta en la próxima)
+                app.poner(Mensaje("Se actualizó, pero faltó algo",
+                                  faltas[-1] + "\nCon internet, entrá de nuevo a Actualizar "
+                                               "y lo reintenta.", al_cerrar=lambda a: a.poner(confirmar)))
+            else:
+                app.poner(confirmar)
         elif rc == 0:
             app.poner(Mensaje("Todo al día", ultima or "Ya tenés la última versión."))
         else:

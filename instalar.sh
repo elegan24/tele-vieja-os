@@ -121,12 +121,12 @@ fi
 if [ -x "$APP/pyenv/bin/pip" ]; then
     "$APP/pyenv/bin/pip" install --quiet --disable-pip-version-check "gdown==5.2.0" \
         && echo "   gdown listo (descargas de Google Drive)." \
-        || amarillo "   No pude instalar gdown: las descargas de Drive no van a andar."
+        || { amarillo "   No pude instalar gdown: las descargas de Drive no van a andar."; FALTARON+=("gdown"); }
     # yt-dlp (YouTube) y deno (el motor de JavaScript que YouTube le exige): siempre la
     # última versión, porque YouTube cambia seguido y las viejas dejan de andar
     "$APP/pyenv/bin/pip" install --quiet --disable-pip-version-check -U "yt-dlp[default]" deno \
         && echo "   yt-dlp listo (YouTube)." \
-        || amarillo "   No pude instalar yt-dlp: YouTube no va a andar."
+        || { amarillo "   No pude instalar yt-dlp: YouTube no va a andar."; FALTARON+=("YouTube (yt-dlp)"); }
 fi
 
 # Nombres completos de los juegos de arcade ("sfa.zip" -> "Street Fighter Alpha")
@@ -149,10 +149,10 @@ if [ "${SIN_WINE:-0}" != 1 ]; then
         apt-get update
         apt-get install -y "${APT_OPCIONES[@]}" --no-install-recommends wine wine64 wine32:i386 libwine:i386 \
             fonts-wine libgl1-mesa-dri:i386 libasound2-plugins:i386 libsdl2-2.0-0:i386 \
-            || amarillo "   No se pudo instalar Wine: los juegos de PC no van a andar."
+            || { amarillo "   No se pudo instalar Wine: los juegos de PC no van a andar."; FALTARON+=("Wine"); }
     else
         apt-get install -y "${APT_OPCIONES[@]}" --no-install-recommends wine wine32 fonts-wine libasound2-plugins \
-            || amarillo "   No se pudo instalar Wine: los juegos de PC no van a andar."
+            || { amarillo "   No se pudo instalar Wine: los juegos de PC no van a andar."; FALTARON+=("Wine"); }
     fi
 fi
 
@@ -162,7 +162,7 @@ if [ "${SIN_KODI:-0}" != 1 ]; then
     verde "   Instalando Kodi (streaming experimental)..."
     apt-get install -y "${APT_OPCIONES[@]}" --no-install-recommends kodi kodi-inputstream-adaptive \
         kodi-peripheral-joystick \
-        || amarillo "   No se pudo instalar Kodi: el Streaming no va a andar."
+        || { amarillo "   No se pudo instalar Kodi: el Streaming no va a andar."; FALTARON+=("Kodi"); }
 fi
 
 verde "==> 4/7 Creando carpetas en $CASA/TeleVieja..."
@@ -394,8 +394,14 @@ EOF
 systemctl enable --now tlp >/dev/null 2>&1 || true
 
 echo
+# Lo que faltó queda anotado: "Actualizar" lo vuelve a intentar aunque no haya versión nueva
 if [ ${#FALTARON[@]} -gt 0 ]; then
-    amarillo "Ojo: no se instalaron ${FALTARON[*]}. Mandale una foto de esto a quien te ayuda."
+    printf '%s\n' "${FALTARON[@]}" > "$APP/FALTA"
+    libre=$(df -h --output=avail / | tail -n1 | tr -d ' ')
+    amarillo "FALTA: no se instalaron ${FALTARON[*]} (lugar libre en el disco: $libre)."
+    amarillo "Ojo: probá de nuevo con internet; si sigue, mandale una foto de esto a quien te ayuda."
+else
+    rm -f "$APP/FALTA"
 fi
 verde "¡Listo! Reiniciá con:  sudo reboot"
 echo "Cargá tus cosas en $R (o con un pendrive desde el menú)."

@@ -8,6 +8,7 @@ FUENTE=/var/lib/televieja/fuente
 LOG=/var/log/televieja-actualizar.log
 
 mkdir -p "$(dirname "$FUENTE")"
+[ -f "$LOG" ] && mv -f "$LOG" "$LOG.anterior"   # la anterior queda guardada
 exec > >(tee "$LOG") 2>&1
 
 echo "Buscando la versión nueva..."
@@ -22,8 +23,12 @@ fi
 nueva=$(git -C "$FUENTE" rev-parse --short HEAD)
 actual=$(cat /opt/televieja/VERSION 2>/dev/null || echo "ninguna")
 if [ "$nueva" = "$actual" ] && [ "${1:-}" != "--forzar" ]; then
-    echo "Ya tenés la última versión ($nueva)."
-    exit 0
+    if [ -s /opt/televieja/FALTA ]; then
+        echo "Ya tenés la última versión, pero faltó instalar: $(paste -sd, /opt/televieja/FALTA). Lo intento de nuevo..."
+    else
+        echo "Ya tenés la última versión ($nueva)."
+        exit 0
+    fi
 fi
 
 echo "Instalando la versión $nueva (antes: $actual)..."
