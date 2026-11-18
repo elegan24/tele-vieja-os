@@ -507,6 +507,12 @@ Para agregar uno tuyo, creá una carpeta en `TeleVieja/Marcos` (por ejemplo
 Conviene dibujarlos en 16:9 (por ejemplo 1280×720) con los adornos a los costados (se ven
 en pantallas anchas) y arriba / abajo en el medio (se ven en la tele con videos 16:9).
 
+**Plantilla para hacer el tuyo:** [`plantillas/marco`](plantillas/marco) tiene una guía
+de 1280×720 que muestra qué parte se ve en cada pantalla (y otra de 320×180 para pixel
+art), un ejemplo listo y el paso a paso. Para bajar todo junto:
+[`plantillas/plantilla-marco.zip`](plantillas/plantilla-marco.zip). Si cambia algo,
+se rehace con `python3 herramientas/plantilla_marco.py`.
+
 ### Internet
 
 *Menú → Internet* junta lo que se mira por internet: **Internet Archive**, **YouTube** y

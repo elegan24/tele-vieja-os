@@ -1978,7 +1978,8 @@ class ElegirMarco(Lista):
             "Creá una carpeta adentro de TeleVieja/Marcos (por ejemplo TeleVieja/Marcos/Mi_Tele) "
             "con un dibujo PNG: default.png para todo el día, o manana.png, tarde.png, noche.png "
             "y madrugada.png para que cambie con la hora. El marco llena las franjas negras "
-            "que deja el video; el video no se achica.")), icono="engranaje"))
+            "que deja el video; el video no se achica. Plantilla para dibujarlo: en el "
+            "GitHub de Frecuencia 99, plantillas/plantilla-marco.zip")), icono="engranaje"))
         self.ajustar()
 
     def _usar(self, app, nombre):
