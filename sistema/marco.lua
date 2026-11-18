@@ -2,8 +2,9 @@
 -- Lo carga Frecuencia 99 en mpv cuando hay un marco elegido (Opciones → Marco de la tele).
 -- bin/marco.py prepara el PNG del marco para el tamaño de esta pantalla (y para la franja
 -- horaria, si el marco cambia con la hora) y dice dónde va el video (el hueco del centro).
--- Si el video es 4:3 (o más angosto que la pantalla), se muestra el marco y el video va en
--- el hueco; si es 16:9, el marco se esconde y el video va a pantalla completa.
+-- El marco tapa las franjas negras que deja el video (a los costados o arriba y abajo); el
+-- video queda en su tamaño de siempre. Si el video llena la pantalla, no hay marco.
+-- (Con "modo": "ventana" en marco.json, el video se achica para entrar en el dibujo.)
 -- Avisa a canal.lua dónde quedó el video (script-message marco-ventana) para que el logo,
 -- el reloj, el zócalo y las cortinas vayan adentro de la "tele".
 
@@ -24,11 +25,11 @@ local function franja()
     return "noche"
 end
 
-local function preparar(w, h)
+local function preparar(w, h, aspecto)
     local r = mp.command_native({
         name = "subprocess", playback_only = false, capture_stdout = true,
         args = { "python3", opts.ayudante, "preparar", opts.carpeta, tostring(w), tostring(h),
-                 opts.cache },
+                 opts.cache, string.format("%.4f", aspecto) },
     })
     local salida = (r and r.stdout or ""):match("([^\n]*)\n*$") or ""
     local d = utils.parse_json(salida)
@@ -44,8 +45,11 @@ local function margenes(izq, arriba, der, abajo)
     mp.set_property_number("video-margin-ratio-top", arriba)
     mp.set_property_number("video-margin-ratio-right", der)
     mp.set_property_number("video-margin-ratio-bottom", abajo)
-    mp.commandv("script-message", "marco-ventana", tostring(izq), tostring(arriba),
-                tostring(der), tostring(abajo))
+end
+
+local function avisar_ventana(v)  -- a canal.lua: dónde quedó el video
+    mp.commandv("script-message", "marco-ventana", tostring(v[1]), tostring(v[2]),
+                tostring(v[3]), tostring(v[4]))
 end
 
 local function aplicar()
@@ -54,24 +58,35 @@ local function aplicar()
     if not dim or not dim.w or dim.w <= 0 or not vp or not vp.aspect then
         return  -- entre un archivo y otro: se deja como está (sin parpadeos)
     end
-    local k = dim.w .. "x" .. dim.h .. " " .. franja()
-    if k ~= clave then
-        clave = k
-        datos = preparar(dim.w, dim.h)
-        mostrando = nil  -- hay que volver a dibujarlo
+    local k = string.format("%dx%d %s %.3f", dim.w, dim.h, franja(), vp.aspect)
+    if k == clave then return end
+    clave = k
+    datos = preparar(dim.w, dim.h, vp.aspect)
+    local usar
+    if datos and datos.modo == "ventana" then
+        -- estilo Super Game Boy: el video se achica para entrar en el hueco del dibujo
+        local pantalla = dim.aspect or (dim.w / dim.h)
+        usar = vp.aspect <= 1.45 or vp.aspect < pantalla - 0.05
+    else
+        -- normal: el marco tapa las franjas negras (si las hay); el video no se toca
+        local v = datos and datos.ventana or { 0, 0, 0, 0 }
+        usar = datos ~= nil and (v[1] > 0.01 or v[2] > 0.01 or v[3] > 0.01 or v[4] > 0.01)
     end
-    local pantalla = dim.aspect or (dim.w / dim.h)
-    local usar = datos ~= nil and (vp.aspect <= 1.45 or vp.aspect < pantalla - 0.05)
-    if usar == mostrando then return end
-    mostrando = usar
     if usar then
         mp.commandv("overlay-add", tostring(ID), "0", "0", datos.archivo, "0", "bgra",
                     tostring(datos.ancho), tostring(datos.alto), tostring(datos.ancho * 4))
-        margenes(datos.ventana[1], datos.ventana[2], datos.ventana[3], datos.ventana[4])
+        if datos.modo == "ventana" then
+            margenes(datos.ventana[1], datos.ventana[2], datos.ventana[3], datos.ventana[4])
+        else
+            margenes(0, 0, 0, 0)
+        end
+        avisar_ventana(datos.ventana)
     else
         mp.commandv("overlay-remove", tostring(ID))
         margenes(0, 0, 0, 0)
+        avisar_ventana({ 0, 0, 0, 0 })
     end
+    mostrando = usar
 end
 
 if opts.carpeta ~= "" and opts.ayudante ~= "" then

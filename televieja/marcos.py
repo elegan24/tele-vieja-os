@@ -1,12 +1,15 @@
 """Marcos (bezels) alrededor del video, estilo Super Game Boy.
 
-Cada marco es una carpeta con PNGs que tienen el centro transparente (ahí va el video):
+El marco llena las franjas negras que deja el video (a los costados de un video 4:3 en una
+pantalla ancha, o arriba y abajo de uno 16:9 en la tele): el video no se achica nunca.
+Cada marco es una carpeta con PNGs (lo del centro no se ve: ahí va el video):
   - default.png: el mismo todo el día.
   - manana.png (06-12:59), tarde.png (13-19:59), noche.png (20-00:59),
     madrugada.png (01-05:59): cambian solos según la hora.
-  - marco.json (opcional): {"pixelArt": true, "anchoPorcentaje": 75, "altoPorcentaje": 100,
-    "izquierdaPorcentaje": 12.5, "arribaPorcentaje": 0}. Sin él, la ventana del video se
-    detecta sola mirando el hueco transparente del PNG.
+  - marco.json (opcional): {"pixelArt": true} agranda sin suavizar. Con "modo": "ventana",
+    el video se achica para entrar en el hueco del dibujo (estilo Super Game Boy), con
+    "anchoPorcentaje", "altoPorcentaje" (y opcional "izquierdaPorcentaje",
+    "arribaPorcentaje"); sin eso, el hueco se detecta mirando lo transparente del PNG.
 
 Los marcos vienen de sistema/marcos (los de fábrica) y de TeleVieja/Marcos (los tuyos,
 también en discos USB). mpv los dibuja con overlay-add, que pide los píxeles crudos en
@@ -164,16 +167,44 @@ def _bgra_premultiplicado(sup):
     return bytes(salida)
 
 
-def preparar(carpeta, ancho, alto, cache, cuando=None):
-    """Deja el marco listo para una pantalla de ancho×alto. Devuelve:
-    {"archivo": .bgra, "ancho", "alto", "ventana": [izq, arriba, der, abajo] (fracciones de
-    margen, como video-margin-ratio de mpv), "png"} o None si no hay marco."""
+def color_de_fondo(imagen):
+    """El color promedio de lo que no es transparente (para rellenar los agujeros)."""
+    import pygame
+    chica = pygame.transform.scale(imagen, (32, 32))
+    r = g = b = n = 0
+    for x in range(32):
+        for y in range(32):
+            c = chica.get_at((x, y))
+            if c.a >= 128:
+                r, g, b, n = r + c.r, g + c.g, b + c.b, n + 1
+    return (r // n, g // n, b // n, 255) if n else (0, 0, 0, 255)
+
+
+def rectangulo_del_video(ancho, alto, aspecto):
+    """Dónde queda el video en la pantalla (sin achicarlo): (x0, y0, x1, y1)."""
+    vw = min(ancho, alto * aspecto)
+    vh = vw / aspecto
+    x0, y0 = (ancho - vw) / 2, (alto - vh) / 2
+    return x0, y0, x0 + vw, y0 + vh
+
+
+def preparar(carpeta, ancho, alto, cache, cuando=None, aspecto=None):
+    """Deja el marco listo para una pantalla de ancho×alto.
+
+    Normal ("relleno"): el video queda en su tamaño de siempre y el marco tapa solo las
+    franjas negras que deja (a los costados o arriba y abajo): se le hace un hueco del
+    tamaño del video. Con {"modo": "ventana"} en marco.json, en cambio, el video se
+    achica para entrar en el hueco del dibujo (estilo Super Game Boy).
+
+    Devuelve {"archivo": .bgra, "ancho", "alto", "ventana": [izq, arriba, der, abajo]
+    (márgenes del video, en fracciones), "modo", "png"} o None si no hay marco."""
     import pygame
     png = elegir_png(carpeta, cuando)
     if not png:
         return None
     cfg = leer_config(carpeta)
     pixel_art = bool(cfg.get("pixelArt"))
+    modo = "ventana" if str(cfg.get("modo", "")).lower() == "ventana" else "relleno"
     original = pygame.image.load(png)
     if original.get_bitsize() not in (24, 32) or original.get_alpha() is None:
         original = original.convert(32, pygame.SRCALPHA)
@@ -183,12 +214,20 @@ def preparar(carpeta, ancho, alto, cache, cuando=None):
     escala = max(ancho / pw, alto / ph)
     tam = (max(1, round(pw * escala)), max(1, round(ph * escala)))
     ox, oy = (ancho - tam[0]) / 2, (alto - tam[1]) / 2
-    vx, vy, vw, vh = ventana_del_diseno(original, cfg)
-    x0, y0 = max(0.0, vx * escala + ox), max(0.0, vy * escala + oy)
-    x1, y1 = min(ancho, (vx + vw) * escala + ox), min(alto, (vy + vh) * escala + oy)
+    if modo == "ventana":
+        vx, vy, vw, vh = ventana_del_diseno(original, cfg)
+        x0, y0 = max(0.0, vx * escala + ox), max(0.0, vy * escala + oy)
+        x1, y1 = min(ancho, (vx + vw) * escala + ox), min(alto, (vy + vh) * escala + oy)
+        hueco = None
+    else:
+        x0, y0, x1, y1 = rectangulo_del_video(ancho, alto, aspecto or 4 / 3)
+        # un píxel para adentro: que el marco pise el borde del video y no quede una raya negra
+        hueco = pygame.Rect(int(x0) + 1, int(y0) + 1, max(0, int(x1) - int(x0) - 2),
+                            max(0, int(y1) - int(y0) - 2))
     ventana = [x0 / ancho, y0 / alto, (ancho - x1) / ancho, (alto - y1) / alto]
 
-    clave = "%s|%s|%dx%d|%s" % (png, os.path.getmtime(png), ancho, alto, pixel_art)
+    clave = "%s|%s|%dx%d|%s|%s|%s" % (png, os.path.getmtime(png), ancho, alto, pixel_art, modo,
+                                      tuple(hueco) if hueco else "")
     archivo = os.path.join(cache, hashlib.sha1(clave.encode()).hexdigest()[:16] + ".bgra")
     if not os.path.exists(archivo):
         if pixel_art:
@@ -197,14 +236,21 @@ def preparar(carpeta, ancho, alto, cache, cuando=None):
             grande = pygame.transform.smoothscale(original, tam)
         lienzo = pygame.Surface((ancho, alto), pygame.SRCALPHA, 32)
         lienzo.fill((0, 0, 0, 0))
+        if hueco:
+            # si el dibujo tiene partes transparentes (un PNG hecho con el centro vacío),
+            # que en las franjas se vea el color del marco y no negro
+            lienzo.fill(color_de_fondo(original))
         lienzo.blit(grande, (round(ox), round(oy)))
+        if hueco:
+            lienzo.fill((0, 0, 0, 0), hueco)   # ahí se ve el video, entero
         os.makedirs(cache, exist_ok=True)
         temporal = archivo + ".tmp"
         with open(temporal, "wb") as f:
             f.write(_bgra_premultiplicado(lienzo))
         os.replace(temporal, archivo)
         _limpiar_cache(cache)
-    return {"archivo": archivo, "ancho": ancho, "alto": alto, "ventana": ventana, "png": png}
+    return {"archivo": archivo, "ancho": ancho, "alto": alto, "ventana": ventana, "modo": modo,
+            "png": png}
 
 
 def _limpiar_cache(cache, guardar=8):
@@ -221,10 +267,11 @@ def _limpiar_cache(cache, guardar=8):
 
 
 def main(args):
-    """marco.py preparar CARPETA ANCHO ALTO CACHE  -> una línea JSON para marco.lua"""
-    if len(args) == 5 and args[0] == "preparar":
+    """marco.py preparar CARPETA ANCHO ALTO CACHE [ASPECTO_DEL_VIDEO]  -> JSON para marco.lua"""
+    if len(args) in (5, 6) and args[0] == "preparar":
         try:
-            datos = preparar(args[1], int(args[2]), int(args[3]), args[4])
+            aspecto = float(args[5]) if len(args) == 6 else None
+            datos = preparar(args[1], int(args[2]), int(args[3]), args[4], aspecto=aspecto)
         except Exception as e:  # noqa: BLE001 - marco.lua solo necesita saber que no hay marco
             datos = {"error": str(e)}
         print(json.dumps(datos))

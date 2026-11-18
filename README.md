@@ -485,27 +485,27 @@ borra (pregunta antes y dice cuánto libera). También en Videos, Radio e Histor
 (nunca en los discos USB), y no se pueden borrar las carpetas principales (Videos,
 Juegos, Canal/Tandas...), solo lo que tienen adentro.
 
-### Marcos de la tele (estilo Super Game Boy)
+### Marcos de la tele
 
-*Opciones → Marco de la tele*: un dibujo alrededor del video. Se ve con los videos 4:3
-(o más angostos que la pantalla) y se esconde solo con los 16:9, que van a pantalla
-completa. El logo, la hora, el zócalo y las cortinas del canal van adentro de la "tele".
-Vienen dos: **TV Clásica** (mueble de madera) y **Super Frecuencia** (pixel art que
-cambia de colores con la hora).
+*Opciones → Marco de la tele*: un dibujo que **llena las franjas negras** que deja el
+video, y el video queda en su tamaño de siempre. Con un video 4:3 en una pantalla ancha
+llena los costados; con un video 16:9 en la tele o el monitor (4:3) llena arriba y
+abajo. Si el video ocupa toda la pantalla, no se ve. Vienen dos: **TV Clásica** (mueble
+de madera con perillas) y **Super Frecuencia** (pixel art que cambia de colores con la
+hora).
 
 Para agregar uno tuyo, creá una carpeta en `TeleVieja/Marcos` (por ejemplo
-`TeleVieja/Marcos/Mi_Tele`) con PNGs que tengan el **centro transparente**:
+`TeleVieja/Marcos/Mi_Tele`) con un dibujo PNG:
 
 - `default.png`: el mismo todo el día.
 - `manana.png` (6 a 12:59), `tarde.png` (13 a 19:59), `noche.png` (20 a 0:59),
   `madrugada.png` (1 a 5:59): cambia solo según la hora.
-- `marco.json` (opcional): `{"pixelArt": true, "anchoPorcentaje": 75, "altoPorcentaje": 100}`.
-  `pixelArt` agranda sin suavizar (píxeles nítidos). El ancho y alto (y opcionalmente
-  `izquierdaPorcentaje` / `arribaPorcentaje`) dicen dónde va el video; si no está, se
-  detecta solo mirando el hueco transparente.
+- `marco.json` (opcional): `{"pixelArt": true}` agranda sin suavizar (píxeles nítidos).
+  Con `"modo": "ventana"` el video, en cambio, se achica para entrar en un hueco
+  transparente del dibujo (estilo Super Game Boy).
 
-Conviene dibujarlos en 16:9 (por ejemplo 1280×720) con lo importante cerca del centro:
-en la tele de tubo (4:3) se recortan un poco los costados.
+Conviene dibujarlos en 16:9 (por ejemplo 1280×720) con los adornos a los costados (se ven
+en pantallas anchas) y arriba / abajo en el medio (se ven en la tele con videos 16:9).
 
 ### Internet
 

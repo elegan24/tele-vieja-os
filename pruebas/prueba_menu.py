@@ -480,8 +480,8 @@ def probar_marcos():
     pygame.init()
     for nombre, archivo, hueco, cfg in (
             ("Solo_Manana", "manana.png", (20, 0, 120, 90), None),
-            ("Con_Json", "default.png", (0, 0, 160, 90), {"anchoPorcentaje": "50%", "altoPorcentaje": 50,
-                                                           "pixelArt": True})):
+            ("Con_Json", "default.png", (0, 0, 160, 90), {"modo": "ventana", "anchoPorcentaje": "50%",
+                                                           "altoPorcentaje": 50, "pixelArt": True})):
         carpeta = os.path.join(propios, nombre)
         os.makedirs(carpeta, exist_ok=True)
         sup = pygame.Surface((160, 90), pygame.SRCALPHA)
@@ -496,16 +496,23 @@ def probar_marcos():
     solo = marcos.buscar("Solo_Manana")
     assert marcos.elegir_png(solo, hora(22)).endswith("manana.png")  # no hay noche ni default
     cache = os.path.join(TMP, "cache-marcos")
-    d = marcos.preparar(solo, 160, 90, cache)
-    assert [round(v, 3) for v in d["ventana"]] == [0.125, 0.0, 0.125, 0.0], d   # hueco detectado
+    d = marcos.preparar(solo, 160, 90, cache)          # video 4:3 en pantalla ancha: franjas a los costados
+    assert d["modo"] == "relleno" and [round(v, 3) for v in d["ventana"]] == [0.125, 0.0, 0.125, 0.0], d
     crudo = open(d["archivo"], "rb").read()
     assert len(crudo) == 160 * 90 * 4
     assert crudo[(45 * 160 + 80) * 4:(45 * 160 + 80) * 4 + 4] == b"\0\0\0\0"   # centro transparente
     assert crudo[0:4] == bytes((50, 50, 200, 255))                               # BGRA, opaco
     d = marcos.preparar(marcos.buscar("Con_Json"), 160, 90, cache)
-    assert [round(v, 3) for v in d["ventana"]] == [0.25, 0.25, 0.25, 0.25], d    # marco.json
-    d = marcos.preparar(sgb, 640, 480, cache, hora(21))
-    assert d["png"].endswith("noche.png") and [round(v, 2) for v in d["ventana"]] == [0.1] * 4, d
+    assert d["modo"] == "ventana" and [round(v, 3) for v in d["ventana"]] == [0.25] * 4, d  # marco.json
+    # en la tele (4:3) con un video 16:9: el marco llena las franjas de arriba y abajo
+    d = marcos.preparar(sgb, 640, 480, cache, hora(21), aspecto=16 / 9)
+    assert d["png"].endswith("noche.png") and [round(v, 3) for v in d["ventana"]] == [0, 0.125, 0, 0.125], d
+    crudo = open(d["archivo"], "rb").read()
+    assert crudo[(10 * 640 + 320) * 4 + 3] == 255                                 # franja de arriba: marco
+    assert crudo[(240 * 640 + 320) * 4:(240 * 640 + 320) * 4 + 4] == b"\0\0\0\0"  # el video, entero
+    # video 4:3 en la tele 4:3: no hay franjas (marco.lua no lo muestra)
+    d = marcos.preparar(sgb, 640, 480, cache, hora(21), aspecto=4 / 3)
+    assert [round(v, 3) for v in d["ventana"]] == [0, 0, 0, 0], d
     # mpv: con marco elegido se carga marco.lua; sin marco, nada
     config.guardar_opcion("MARCO", "Super_Frecuencia")
     extra = reproducir.opciones_marco()
