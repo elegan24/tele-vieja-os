@@ -27,14 +27,19 @@ end
 
 local function preparar(w, h, aspecto)
     local r = mp.command_native({
-        name = "subprocess", playback_only = false, capture_stdout = true,
+        name = "subprocess", playback_only = false, capture_stdout = true, capture_stderr = true,
         args = { "python3", opts.ayudante, "preparar", opts.carpeta, tostring(w), tostring(h),
                  opts.cache, string.format("%.4f", aspecto) },
     })
     local salida = (r and r.stdout or ""):match("([^\n]*)\n*$") or ""
     local d = utils.parse_json(salida)
     if not d or not d.archivo then
-        mp.msg.warn("sin marco: " .. ((d and d.error) or salida))
+        local errores = (r and r.stderr or ""):match("([^\n]+)\n*$")  -- la última línea
+        local motivo = (d and d.error) or errores or salida
+        if motivo == "" then motivo = "el ayudante no contestó (estado " .. tostring(r and r.status) .. ")" end
+        mp.msg.warn("sin marco: " .. motivo)
+        -- que se vea en la tele por qué no aparece (así se puede mandar una foto)
+        mp.osd_message("No se pudo poner el marco: " .. motivo:sub(1, 120), 8)
         return nil
     end
     return d
