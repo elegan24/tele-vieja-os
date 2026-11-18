@@ -1854,9 +1854,28 @@ def abrir_busqueda(app, titulo, consulta):
     app.poner(Espera("Internet Archive", "Buscando...", lambda: archivo.buscar(consulta), listo))
 
 
+def _favorito_internet(app, lista):
+    """X en una lista de Internet: agrega o saca de Favoritos (★ a la derecha)."""
+    from . import favoritos
+    if not lista.items or not isinstance(lista.items[lista.sel].dato, dict):
+        return
+    item = lista.items[lista.sel]
+    queda = favoritos.alternar_internet(item.dato)
+    detalle = item.dato.get("detalle", "")
+    item.extra = ("★ " + detalle).strip() if queda else detalle
+    app.sonido.tocar("elegir" if queda else "volver")
+    app.avisar("★ Agregado a Favoritos" if queda else "Sacado de Favoritos", 1.5)
+    app.sucio = True
+
+
+def _extra_favorito(tipo, ident, detalle, favs):
+    from . import favoritos
+    return ("★ " + detalle).strip() if favoritos.es_favorito_internet(tipo, ident, favs) else detalle
+
+
 class ArchivoResultados(Lista):
     def __init__(self, titulo, consulta, total, resultados):
-        super().__init__(titulo, ayuda="A: abrir  B: volver  L/R: letra")
+        super().__init__(titulo, ayuda="A: abrir  X: favorito  B: volver")
         self.consulta = consulta
         self.total = total
         self.resultados = list(resultados)
@@ -1864,8 +1883,13 @@ class ArchivoResultados(Lista):
         self.cargar()
 
     def cargar(self):
-        self.items = [Item(r["titulo"], lambda app, r=r: abrir_item_archivo(app, r),
-                           icono="mundo", extra=r["anio"]) for r in self.resultados]
+        from . import favoritos
+        favs = favoritos.internet()
+        self.items = [Item(r["titulo"], lambda app, r=r: abrir_item_archivo(app, r), icono="mundo",
+                           extra=_extra_favorito("archivo", r["id"], r["anio"], favs),
+                           dato={"tipo": "archivo", "id": r["id"], "titulo": r["titulo"],
+                                 "detalle": r["anio"]})
+                      for r in self.resultados]
         if len(self.resultados) < self.total:
             self.items.append(Item("Más resultados (%d en total)" % self.total, self._mas,
                                    icono="flecha"))
@@ -1888,6 +1912,12 @@ class ArchivoResultados(Lista):
             self.cargar()
         app.poner(Espera(self.titulo, "Buscando más...",
                          lambda: archivo.buscar(self.consulta, self.pagina + 1), listo))
+
+    def accion(self, app, boton):
+        if boton == "x":
+            _favorito_internet(app, self)
+        else:
+            super().accion(app, boton)
 
 
 def abrir_item_archivo(app, r):
@@ -2004,10 +2034,21 @@ def buscar_youtube(app, texto):
 
 class YoutubeResultados(Lista):
     def __init__(self, texto, videos):
-        super().__init__(texto, ayuda="A: ver  B: volver  L/R: letra")
+        from . import favoritos
+        super().__init__(texto, ayuda="A: ver  X: favorito  B: volver")
         self.videos = videos
+        favs = favoritos.internet()
         self.items = [Item(v["titulo"], lambda app, i=i: self._ver(app, i), icono="play",
-                           extra=v["duracion"]) for i, v in enumerate(videos)]
+                           extra=_extra_favorito("youtube", v["id"], v["duracion"], favs),
+                           dato={"tipo": "youtube", "id": v["id"], "titulo": v["titulo"],
+                                 "detalle": v["duracion"], "url": v["url"]})
+                      for i, v in enumerate(videos)]
+
+    def accion(self, app, boton):
+        if boton == "x":
+            _favorito_internet(app, self)
+        else:
+            super().accion(app, boton)
 
     def _ver(self, app, i):
         from . import youtube
@@ -2120,3 +2161,52 @@ class EspacioDisco(Lista):
             app.sucio = True
         else:
             super().volver(app)
+
+
+class InternetFavoritos(Lista):
+    """Internet → Favoritos: lo guardado con X en YouTube y en Internet Archive."""
+
+    def __init__(self):
+        super().__init__("Favoritos", ayuda="A: ver  X: sacar  B: volver")
+        self.cargar()
+
+    def cargar(self):
+        from . import favoritos
+        self.favs = favoritos.internet()
+        self.items = []
+        for e in self.favs:
+            de_youtube = e["tipo"] == "youtube"
+            self.items.append(Item(e["titulo"], lambda app, e=e: self._abrir(app, e),
+                                   icono="play" if de_youtube else "mundo",
+                                   extra="YouTube" if de_youtube else "Archive", dato=e))
+        if not self.items:
+            self.items.append(Item("Todavía no hay favoritos", apagado=True))
+            self.items.append(Item("En YouTube o Internet Archive, apretá X sobre algo para "
+                                   "guardarlo acá", apagado=True))
+        self.ajustar()
+
+    def _abrir(self, app, entrada):
+        if entrada["tipo"] == "youtube":
+            from . import youtube
+            # desde este, siguen los demás favoritos de YouTube
+            videos = [{"titulo": e["titulo"], "url": e["url"]}
+                      for e in self.favs[self.favs.index(entrada):]
+                      if e["tipo"] == "youtube" and e.get("url")]
+            app.lanzar_mpv(reproducir.orden_youtube(youtube.lista_m3u(videos)),
+                           reproducir.control_videos)
+        else:
+            abrir_item_archivo(app, {"id": entrada["id"], "titulo": entrada["titulo"]})
+
+    def accion(self, app, boton):
+        if boton == "x" and self.items and isinstance(self.items[self.sel].dato, dict):
+            from . import favoritos
+            favoritos.alternar_internet(self.items[self.sel].dato)
+            app.avisar("Sacado de Favoritos", 1.5)
+            self.cargar()
+            app.sucio = True
+        else:
+            super().accion(app, boton)
+
+    def al_volver(self, app):
+        self.cargar()
+        app.sucio = True

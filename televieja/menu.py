@@ -17,7 +17,7 @@ from . import config, remoto, reproducir, ui  # noqa: E402
 from . import mando as mando_mod  # noqa: E402
 from .mando import Mando  # noqa: E402
 from .pantallas import (ArchivoInicio, Calibrar, Confirmar, ControlCelular, Descargas,
-                        ElegirMarco, ElegirTema, Espera, GrillaCanal,  # noqa: E402
+                        ElegirMarco, ElegirTema, Espera, GrillaCanal, InternetFavoritos,  # noqa: E402
                         Explorador, Lector, Protector, abrir_bluetooth, abrir_wifi,
                         Item, Lista, YoutubeInicio, abrir_espacio,
                         ListaSistemas, Mensaje)
@@ -767,6 +767,7 @@ def menu_principal(app):
         return lambda app: app.poner(pantalla_fabrica())
 
     internet = Lista("Internet", [
+        Item("Favoritos", ir(InternetFavoritos), icono="estrella"),
         Item("Internet Archive", ir(ArchivoInicio), icono="mundo", extra="cosas viejas"),
         Item("YouTube", ir(YoutubeInicio), icono="play"),
         Item("Streaming", lambda app: app.kodi(), icono="tele", extra="experimental"),

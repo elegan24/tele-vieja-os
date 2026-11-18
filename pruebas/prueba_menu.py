@@ -732,9 +732,10 @@ def probar_archivo(app, paso, foto):
         principal = app.pila[0]
         principal.sel = [it.texto for it in principal.items].index("Internet")
         paso("a")
-        assert [it.texto for it in app.actual.items] == ["Internet Archive", "YouTube", "Streaming"]
+        assert [it.texto for it in app.actual.items] == ["Favoritos", "Internet Archive", "YouTube",
+                                                         "Streaming"]
         foto("33-internet")
-        app.actual.sel = 0
+        app.actual.sel = 1
         paso("a")
         assert isinstance(app.actual, pantallas.ArchivoInicio)
         foto("30-archivo")
@@ -749,6 +750,9 @@ def probar_archivo(app, paso, foto):
             assert isinstance(app.actual, clase), app.actual
         esperar(pantallas.ArchivoResultados)
         assert [it.texto for it in app.actual.items] == ["Betty Boop Cartoons", "Get Smart"]
+        app.actual.sel = 1
+        paso("x")                            # Get Smart a Favoritos
+        assert app.actual.items[1].extra == "★", app.actual.items[1].extra
         foto("31-archivo-resultados")
         app.actual.sel = 1
         paso("a")
@@ -802,6 +806,9 @@ def probar_youtube(app, paso, foto):
             time.sleep(0.02)
         assert isinstance(app.actual, pantallas.YoutubeResultados)
         assert [it.extra for it in app.actual.items] == ["54:41", "10:00"]
+        app.actual.sel = 0
+        paso("x")                            # a Favoritos
+        assert app.actual.items[0].extra == "★ 54:41", app.actual.items[0].extra
         foto("34-youtube")
         app.actual.sel = 1
         paso("a")
@@ -809,6 +816,21 @@ def probar_youtube(app, paso, foto):
         assert "watch?v=ddd" in m3u and "watch?v=aaa" not in m3u
         app.sacar()
         assert app.actual.items[1].texto == youtube.SUGERENCIAS[1] and app.actual.items[1].extra == "reciente"
+        # Internet > Favoritos: lo marcado con X en YouTube y en Internet Archive
+        app.poner(pantallas.InternetFavoritos())
+        favs = app.actual
+        assert [(it.texto, it.extra) for it in favs.items] == [
+            ("TELEFE 1991 - Tandas", "YouTube"), ("Get Smart", "Archive")], [(it.texto, it.extra) for it in favs.items]
+        foto("37-favoritos-internet")
+        favs.sel = 0
+        paso("a")
+        m3u = open([o for o in lanzados[-1][0] if o.startswith("--playlist=")][0][11:]).read()
+        assert "watch?v=aaa" in m3u
+        paso("x")                            # sacar
+        assert [it.texto for it in favs.items] == ["Get Smart"]
+        favs.sel = 0
+        paso("x")
+        assert favs.items[0].apagado
         # Kodi: si no está, avisa; si está, la primera vez explica y después abre
         while len(app.pila) > 1:
             app.sacar()
