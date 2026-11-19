@@ -683,6 +683,15 @@ def probar_bluetooth(app, paso, foto):
     assert "adaptador Bluetooth USB" in app.actual.texto, app.actual.texto
     while len(app.pila) > 1:
         app.sacar()
+    # si está apagado con la tecla Fn, lo dice
+    viejo_bt = pantallas._bt
+    pantallas._bt = lambda app_, *a: {"adaptador": False, "dispositivos": [], "motivo": "tecla"}
+    pantallas.abrir_bluetooth(app)
+    esperar_pantalla(pantallas.Mensaje)
+    assert "Fn + F1" in app.actual.texto, app.actual.texto
+    pantallas._bt = viejo_bt
+    while len(app.pila) > 1:
+        app.sacar()
     # el sonido va al auricular si bluealsa tiene uno conectado
     falso = os.path.join(TMP, "bin-bt")
     os.makedirs(falso, exist_ok=True)

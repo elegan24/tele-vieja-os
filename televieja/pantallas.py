@@ -1560,12 +1560,24 @@ SIN_BLUETOOTH = ("Esta netbook no tiene Bluetooth (o está apagado).\n\n"
                  "y volvé a entrar acá.")
 
 
+POR_QUE_NO_HAY_BLUETOOTH = {
+    "tecla": "El Bluetooth está apagado con la tecla de las antenas: apretá Fn + F1 (la de "
+             "las ondas) y volvé a entrar acá.",
+    "sin_programas": "Faltan los programas de Bluetooth. Conectate a internet y entrá a "
+                     "Opciones → Actualizar.",
+    "servicio": "La netbook tiene Bluetooth pero no arrancó. Reiniciala y probá de nuevo.",
+    "firmware": "La netbook tiene Bluetooth, pero le falta un archivo del fabricante "
+                "(firmware) para arrancar. Mandá una foto de esto a quien te ayuda:\n{detalle}",
+}
+
+
 def abrir_bluetooth(app):
     def listo(app, datos, error):
         if error:
             app.poner(Mensaje("Bluetooth", "No pude buscar: %s" % error))
         elif not datos.get("adaptador"):
-            app.poner(Mensaje("Bluetooth", SIN_BLUETOOTH))
+            app.poner(Mensaje("Bluetooth", POR_QUE_NO_HAY_BLUETOOTH.get(
+                datos.get("motivo"), SIN_BLUETOOTH).format(detalle=datos.get("detalle") or "")))
         else:
             app.poner(Auriculares(datos.get("dispositivos", [])))
     app.poner(Espera("Bluetooth", "Buscando... poné el auricular en modo emparejar",

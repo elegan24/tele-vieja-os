@@ -9,9 +9,12 @@ Uso:
 
 Siempre termina con una línea JSON para el menú.
 """
+import glob
 import json
+import os
 import queue
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -46,6 +49,46 @@ def preparar():
             return True
         time.sleep(1)
     return False
+
+
+def bloqueado_por_tecla(texto_rfkill):
+    """¿"rfkill list" dice que el Bluetooth está apagado por hardware (la tecla Fn)?"""
+    bloque = None
+    for linea in texto_rfkill.splitlines():
+        if re.match(r"^\d+:", linea):
+            bloque = "bluetooth" in linea.lower()
+        elif bloque and "hard blocked: yes" in linea.lower():
+            return True
+    return False
+
+
+def hay_modulo_usb():
+    """¿Hay un aparato Bluetooth conectado (adentro o por USB), aunque no haya arrancado?
+    Clase de interfaz USB e0/01/01 = "controlador Bluetooth"."""
+    for interfaz in glob.glob("/sys/bus/usb/devices/*:*"):
+        try:
+            clase = [open(os.path.join(interfaz, n)).read().strip()
+                     for n in ("bInterfaceClass", "bInterfaceSubClass", "bInterfaceProtocol")]
+        except OSError:
+            continue
+        if clase == ["e0", "01", "01"]:
+            return True
+    return False
+
+
+def diagnostico():
+    """Por qué no aparece el Bluetooth: (motivo, detalle)."""
+    if not shutil.which("bluetoothctl"):
+        return "sin_programas", ""
+    if bloqueado_por_tecla(correr("rfkill", "list")):
+        return "tecla", ""
+    if glob.glob("/sys/class/bluetooth/hci*"):
+        return "servicio", ""
+    mensajes = [l for l in correr("dmesg").splitlines()
+                if re.search(r"bluetooth|btusb|hci\d", l, re.I)]
+    if hay_modulo_usb():
+        return "firmware", "\n".join(l.split("] ", 1)[-1][:90] for l in mensajes[-3:])
+    return "no_tiene", ""
 
 
 class Sesion:
@@ -121,7 +164,8 @@ def dispositivos():
 
 def buscar():
     if not preparar():
-        responder({"adaptador": False, "dispositivos": []})
+        motivo, detalle = diagnostico()
+        responder({"adaptador": False, "dispositivos": [], "motivo": motivo, "detalle": detalle})
     s = Sesion()
     s.enviar("scan on")
     time.sleep(SEGUNDOS_BUSQUEDA)
