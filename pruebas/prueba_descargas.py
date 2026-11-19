@@ -457,6 +457,16 @@ def probar_directo_cortado():
     assert pedidos[0] is None and pedidos[-1] == "bytes=%d-" % (len(contenido) // 2), pedidos
     with open(os.path.join(R, "Videos", "Pelicula.mp4"), "rb") as f:
         assert f.read() == contenido, "el archivo armado en dos partes no es igual al original"
+    # con subcarpeta (como los capítulos de Internet Archive): quedan juntos en Videos/<serie>
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 18485), Servidor)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    pedidos.clear()
+    t = g.agregar("http://127.0.0.1:18485/descargar?id=456", subcarpeta="Get Smart: T1/2")
+    d = esperar(g, t.id, limite=60)
+    srv.shutdown()
+    assert d["estado"] == "listo", d
+    final = os.path.join(R, "Videos", "Get Smart_ T1_2", "Pelicula.mp4")
+    assert os.path.exists(final), os.listdir(os.path.join(R, "Videos"))
 
 
 def probar_web(g):

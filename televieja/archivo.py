@@ -131,9 +131,13 @@ def elegir_videos(archivos):
         if isinstance(titulo, list):
             titulo = titulo[0]
         nombre_base = _nombre_sin_version(clave)
+        try:
+            tamano = int(mejor.get("size", 0))
+        except ValueError:
+            tamano = 0
         videos.append({"nombre": mejor["name"],
                        "titulo": str(titulo).strip() or config.nombre_lindo(nombre_base + ".x"),
-                       "orden": clave})
+                       "tamano": tamano, "orden": clave})
     videos.sort(key=lambda v: (
         [config.clave_natural(p) for p in os.path.dirname(v["orden"]).split("/")],
         config.numero_episodio(os.path.basename(v["orden"])) or float("inf"),
@@ -154,7 +158,8 @@ def videos(identificador):
     titulo = datos.get("metadata", {}).get("title") or identificador
     if isinstance(titulo, list):
         titulo = titulo[0]
-    lista = [{"titulo": v["titulo"], "url": url_de(identificador, v["nombre"])}
+    lista = [{"titulo": v["titulo"], "url": url_de(identificador, v["nombre"]),
+              "tamano": v["tamano"]}
              for v in elegir_videos(datos.get("files", []))]
     return str(titulo), lista
 

@@ -367,8 +367,9 @@ PAGINA = """<!doctype html>
     <button data-b="b">↩ Volver</button>
     <button data-b="inicio">⌂ Inicio</button>
   </div>
-  <div class="fila" style="--n:1">
+  <div class="fila" style="--n:2">
     <button data-b="x">★ Favorito (X)</button>
+    <button data-b="y">⬇ Bajar (Y)</button>
   </div>
 
   <h2>Videos y radio</h2>

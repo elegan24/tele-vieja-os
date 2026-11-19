@@ -1874,6 +1874,54 @@ def _favorito_internet(app, lista):
     app.sucio = True
 
 
+def es_boton_bajar(boton):
+    """Y del joystick/celu, o la tecla D (de "descargar") del teclado."""
+    return boton in ("y", "letra:D")
+
+
+def gestor_de_descargas():
+    """El gestor de descargas (lo arranca el control del celu; si está apagado, acá)."""
+    from . import descargas, remoto
+    if remoto.gestor is None:
+        remoto.gestor = descargas.Gestor()
+    return remoto.gestor
+
+
+def bajar_videos_archivo(app, titulo, videos):
+    """Pone en Descargas los videos de Internet Archive: quedan en Videos/<título> y se ven
+    sin internet. Antes se fija que entren en el disco."""
+    from . import espacio
+    if not videos:
+        app.poner(Mensaje(titulo, "Este no tiene videos para bajar."))
+        return
+    total = sum(v.get("tamano") or 0 for v in videos)
+    libre, _ = espacio.libre()
+    if total and total + 1024 ** 3 > libre:
+        app.poner(Mensaje("No entra", "Bajar esto ocupa %s y en la netbook quedan %s libres. "
+                                      "Hacé lugar en Opciones → Espacio en el disco." % (
+                                          espacio.legible(total), espacio.legible(libre))))
+        return
+    carpeta = config.nombre_lindo(titulo + ".x")
+    cuantos = "este video" if len(videos) == 1 else "estos %d videos" % len(videos)
+    texto = "¿Bajar %s%s? Quedan en Videos/%s y se ven sin internet." % (
+        cuantos, " (%s)" % espacio.legible(total) if total else "", carpeta)
+
+    def si(app):
+        gestor = gestor_de_descargas()
+        nuevos = 0
+        for v in videos:
+            try:
+                gestor.agregar(v["url"], subcarpeta=carpeta)
+                nuevos += 1
+            except ValueError:
+                pass   # ya se estaba bajando
+        app.avisar("Bajando %d · mirá Opciones → Descargas" % nuevos if nuevos
+                   else "Eso ya se está bajando", 4)
+    confirmar = Confirmar(texto, si)
+    confirmar.opcion = 0
+    app.poner(confirmar)
+
+
 def _extra_favorito(tipo, ident, detalle, favs):
     from . import favoritos
     return ("★ " + detalle).strip() if favoritos.es_favorito_internet(tipo, ident, favs) else detalle
@@ -1881,7 +1929,7 @@ def _extra_favorito(tipo, ident, detalle, favs):
 
 class ArchivoResultados(Lista):
     def __init__(self, titulo, consulta, total, resultados):
-        super().__init__(titulo, ayuda="A: abrir  X o F: favorito  B: volver")
+        super().__init__(titulo, ayuda="A: abrir  X/F: favorito  Y/D: bajar")
         self.consulta = consulta
         self.total = total
         self.resultados = list(resultados)
@@ -1922,6 +1970,17 @@ class ArchivoResultados(Lista):
     def accion(self, app, boton):
         if es_boton_favorito(boton):
             _favorito_internet(app, self)
+        elif es_boton_bajar(boton) and self.items and isinstance(self.items[self.sel].dato, dict):
+            from . import archivo
+            dato = self.items[self.sel].dato
+
+            def listo(app, resultado, error):
+                if error:
+                    app.poner(Mensaje("Internet Archive", str(error)))
+                else:
+                    bajar_videos_archivo(app, resultado[0], resultado[1])
+            app.poner(Espera(dato["titulo"], "Viendo qué videos tiene...",
+                             lambda: archivo.videos(dato["id"]), listo))
         else:
             super().accion(app, boton)
 
@@ -1953,10 +2012,21 @@ class ArchivoVideos(Lista):
     """Los capítulos de una serie (o las partes de una película), en orden."""
 
     def __init__(self, titulo, videos):
-        super().__init__(titulo, ayuda="A: ver  B: volver  L/R: letra")
+        from . import espacio
+        super().__init__(titulo, ayuda="A: ver  Y o D: bajar  B: volver")
         self.videos = videos
-        self.items = [Item(v["titulo"], lambda app, i=i: ver_archivo(app, titulo, self.videos[i:]),
-                           icono="play") for i, v in enumerate(videos)]
+        total = sum(v.get("tamano") or 0 for v in videos)
+        self.items = [Item("Bajar todos para ver sin internet",
+                           lambda app: bajar_videos_archivo(app, titulo, self.videos), icono="bajar",
+                           extra=espacio.legible(total) if total else "")]
+        self.items += [Item(v["titulo"], lambda app, i=i: ver_archivo(app, titulo, self.videos[i:]),
+                            icono="play", dato=i) for i, v in enumerate(videos)]
+
+    def accion(self, app, boton):
+        if es_boton_bajar(boton) and self.items and isinstance(self.items[self.sel].dato, int):
+            bajar_videos_archivo(app, self.titulo, [self.videos[self.items[self.sel].dato]])
+        else:
+            super().accion(app, boton)
 
 
 # --- marcos (bezels) ----------------------------------------------------------

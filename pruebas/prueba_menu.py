@@ -764,12 +764,47 @@ def probar_archivo(app, paso, foto):
         app.actual.sel = 1
         paso("a")
         esperar(pantallas.ArchivoVideos)
-        app.actual.sel = 1
+        assert app.actual.items[0].texto.startswith("Bajar todos")
+        app.actual.sel = 2
         paso("a")                            # ve desde el capítulo 2
         orden = lanzados[-1]
         assert orden[0] == "mpv" and any(o.startswith("--playlist=") for o in orden), orden
         m3u = open([o for o in orden if o.startswith("--playlist=")][0].split("=", 1)[1]).read()
         assert "smart/2.mp4" in m3u and "smart/1.mp4" not in m3u and "#EXTINF:-1,Get Smart S01E02" in m3u
+        # bajar para ver sin internet: un capítulo con D (o Y) y todos con "Bajar todos"
+        from televieja import remoto
+        pedidos = []
+
+        class GestorFalso:
+            def agregar(self, url, subcarpeta=""):
+                if any(u == url for u, _ in pedidos):
+                    raise ValueError("ya está")
+                pedidos.append((url, subcarpeta))
+        viejo_gestor = remoto.gestor
+        remoto.gestor = GestorFalso()
+        try:
+            app.actual.sel = 1
+            paso("letra:D")
+            assert isinstance(app.actual, pantallas.Confirmar) and "Videos/Get Smart" in app.actual.pregunta
+            paso("a")                        # "Sí" ya viene elegido
+            assert pedidos == [("https://archive.org/download/smart/1.mp4", "Get Smart")], pedidos
+            app.actual.sel = 0
+            paso("a")                        # Bajar todos
+            paso("a")
+            assert [u for u, _ in pedidos] == ["https://archive.org/download/smart/1.mp4",
+                                               "https://archive.org/download/smart/2.mp4"], pedidos
+            assert "Bajando 1" in app.aviso, app.aviso   # el 1 ya estaba
+            # si no entra en el disco, avisa y no baja nada
+            from televieja import espacio
+            viejo_libre = espacio.libre
+            espacio.libre = lambda: (100 * 1024 ** 2, 200 * 1024 ** 3)
+            pantallas.bajar_videos_archivo(app, "Grande", [{"titulo": "x", "url": "https://a/b.mp4",
+                                                            "tamano": 5 * 1024 ** 3}])
+            espacio.libre = viejo_libre
+            assert isinstance(app.actual, pantallas.Mensaje) and app.actual.titulo_caja == "No entra"
+            app.sacar()
+        finally:
+            remoto.gestor = viejo_gestor
     finally:
         archivo.buscar, archivo.videos = viejos
         app.lanzar = viejo_lanzar

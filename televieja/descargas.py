@@ -149,11 +149,12 @@ def clasificar(textos):
 class Trabajo:
     CAMPOS = ("id", "url", "estado", "nombre", "archivo", "total", "porcentaje", "mensaje",
               "avisos", "resumen", "creado", "intentos", "proximo", "solo_acomodar",
-              "aviso_temprano", "faltantes")
+              "aviso_temprano", "faltantes", "subcarpeta")
 
     def __init__(self, url, ident=None):
         self.id = ident if ident is not None else next(_numeros)
         self.url = url
+        self.subcarpeta = ""   # para que los capítulos de una serie queden juntos
         # esperando, bajando, acomodando, reintentar, listo, error, cancelado
         self.estado = "esperando"
         self.nombre = "Drive" if es_drive(url) else os.path.basename(urllib.parse.urlparse(url).path) or url
@@ -261,13 +262,15 @@ class Gestor:
             pass
 
     # --- lo que usan la página del celu y el menú ------------------------------
-    def agregar(self, url):
+    def agregar(self, url, subcarpeta=""):
+        """subcarpeta: dónde va adentro de su categoría (Videos/<subcarpeta>/...)."""
         url = validar(url)
         with self.lock:
             for t in self.trabajos:
                 if t.url == url and t.estado in ESTADOS_ACTIVOS:
                     raise ValueError("Ese link ya está en la lista.")
             trabajo = Trabajo(url)
+            trabajo.subcarpeta = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", subcarpeta or "").strip(" .")[:100]
             self.trabajos.append(trabajo)
         self._guardar()
         self.hay_trabajo.set()
@@ -563,6 +566,9 @@ class Gestor:
         return False
 
     def _bajar_directo_una_vez(self, trabajo, carpeta):
+        if trabajo.subcarpeta:
+            carpeta = os.path.join(carpeta, trabajo.subcarpeta)
+            os.makedirs(carpeta, exist_ok=True)
         partes = [a for a in os.listdir(carpeta) if a.endswith(".part")]
         ya = os.path.getsize(os.path.join(carpeta, partes[0])) if partes else 0
         cabeceras = {"User-Agent": "TeleVieja"}

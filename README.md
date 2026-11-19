@@ -555,6 +555,11 @@ se ve igual y la netbook no se traba. Las series se ven en orden y siguen solas 
 capítulo siguiente; si salís a la mitad, la próxima vez sigue donde quedó. Lo que es
 para adultos no aparece.
 
+**Bajar para ver sin internet:** en una serie, *Bajar todos para ver sin internet*; o
+**Y** (tecla **D**, o "⬇ Bajar" en el celu) sobre un capítulo o un título de la lista. Se
+fija antes que entre en el disco, se baja de a poco (sigue sola si se corta internet) y
+queda en `Videos/<nombre>`. El avance se ve en *Opciones → Descargas*.
+
 ### Juegos
 
 **SELECT + START: salir** · SELECT + R: guardar partida · SELECT + L: cargar partida ·
