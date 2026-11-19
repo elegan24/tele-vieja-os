@@ -427,7 +427,7 @@ class Explorador(Lista):
             else:
                 self.ayuda = "Cargá cosas en TeleVieja/" + self.subcarpeta
         else:
-            self.ayuda = "A: elegir  X: borrar  B: volver"
+            self.ayuda = "A: elegir  X o Supr: borrar  B: volver"
             if not self.carpeta.startswith(config.RAIZ):
                 self.ayuda = "A: elegir    B: volver    L/R: letra"   # disco USB: no se borra
         self.sel = min(self.recuerdo.get(self.carpeta, 0), len(self.items) - 1)
@@ -442,7 +442,7 @@ class Explorador(Lista):
         app.sucio = True
 
     def accion(self, app, boton):
-        if boton == "x" and self.items and self.items[self.sel].dato:
+        if boton in ("x", "borrar") and self.items and self.items[self.sel].dato:
             sel = self.sel
             ruta = self.items[self.sel].dato
 
@@ -572,6 +572,12 @@ def nombre_de_juego(rom, sistema_id):
     return limpiar_nombre_rom(os.path.basename(rom))[0]
 
 
+def es_boton_favorito(boton):
+    """X del joystick/celu, o la tecla F del teclado de la netbook (la X del teclado salta
+    de letra en las listas)."""
+    return boton in ("x", "letra:F")
+
+
 def alternar_favorito(app, lista, sistema_id):
     """X en una lista de juegos: agrega o saca de Favoritos."""
     from . import favoritos
@@ -588,7 +594,7 @@ def alternar_favorito(app, lista, sistema_id):
 
 class ListaJuegos(Lista):
     def __init__(self, sistema, roms, core):
-        super().__init__(sistema["nombre"], ayuda="A: jugar  X: favorito  L/R: letra")
+        super().__init__(sistema["nombre"], ayuda="A: jugar  X o F: favorito  L/R: letra")
         self.core = core
         self.sistema = sistema
         if sistema.get("nombres") == "arcade":
@@ -620,7 +626,7 @@ class ListaJuegos(Lista):
                                dato=rom, extra="★" if rom in favs else "") for n, rom in pares]
 
     def accion(self, app, boton):
-        if boton == "x":
+        if es_boton_favorito(boton):
             queda = alternar_favorito(app, self, self.sistema["id"])
             if queda is not None:
                 self.items[self.sel].extra = "★" if queda else ""
@@ -635,7 +641,7 @@ class ListaEspecial(Lista):
     def __init__(self, cual):
         self.cual = cual
         super().__init__("Favoritos" if cual == "favoritos" else "Últimos jugados",
-                         ayuda="A: jugar  X: favorito  B: volver")
+                         ayuda="A: jugar  X o F: favorito  B: volver")
         self.cargar()
 
     def cargar(self):
@@ -657,7 +663,7 @@ class ListaEspecial(Lista):
         self.ajustar()
 
     def accion(self, app, boton):
-        if boton == "x":
+        if es_boton_favorito(boton):
             if alternar_favorito(app, self, None) is not None:
                 self.cargar()
                 app.sucio = True
@@ -1875,7 +1881,7 @@ def _extra_favorito(tipo, ident, detalle, favs):
 
 class ArchivoResultados(Lista):
     def __init__(self, titulo, consulta, total, resultados):
-        super().__init__(titulo, ayuda="A: abrir  X: favorito  B: volver")
+        super().__init__(titulo, ayuda="A: abrir  X o F: favorito  B: volver")
         self.consulta = consulta
         self.total = total
         self.resultados = list(resultados)
@@ -1914,7 +1920,7 @@ class ArchivoResultados(Lista):
                          lambda: archivo.buscar(self.consulta, self.pagina + 1), listo))
 
     def accion(self, app, boton):
-        if boton == "x":
+        if es_boton_favorito(boton):
             _favorito_internet(app, self)
         else:
             super().accion(app, boton)
@@ -2036,7 +2042,7 @@ def buscar_youtube(app, texto):
 class YoutubeResultados(Lista):
     def __init__(self, texto, videos):
         from . import favoritos
-        super().__init__(texto, ayuda="A: ver  X: favorito  B: volver")
+        super().__init__(texto, ayuda="A: ver  X o F: favorito  B: volver")
         self.videos = videos
         favs = favoritos.internet()
         self.items = [Item(v["titulo"], lambda app, i=i: self._ver(app, i), icono="play",
@@ -2046,7 +2052,7 @@ class YoutubeResultados(Lista):
                       for i, v in enumerate(videos)]
 
     def accion(self, app, boton):
-        if boton == "x":
+        if es_boton_favorito(boton):
             _favorito_internet(app, self)
         else:
             super().accion(app, boton)
@@ -2105,7 +2111,7 @@ class EspacioDisco(Lista):
     """Lo que hay en TeleVieja, lo más grande primero. A entra, X borra, B vuelve."""
 
     def __init__(self, tamanos):
-        super().__init__("Espacio", ayuda="A: entrar  X: borrar  B: volver")
+        super().__init__("Espacio", ayuda="A: entrar  X o Supr: borrar  B: volver")
         self.tamanos = tamanos
         self.carpeta = config.RAIZ
         self.pila_carpetas = []
@@ -2148,7 +2154,7 @@ class EspacioDisco(Lista):
         return despues
 
     def accion(self, app, boton):
-        if boton == "x" and self.items and self.items[self.sel].dato:
+        if boton in ("x", "borrar") and self.items and self.items[self.sel].dato:
             ruta = self.items[self.sel].dato
             borrar_con_confirmacion(app, ruta, self._despues_de_borrar(ruta))
         else:
@@ -2168,7 +2174,7 @@ class InternetFavoritos(Lista):
     """Internet → Favoritos: lo guardado con X en YouTube y en Internet Archive."""
 
     def __init__(self):
-        super().__init__("Favoritos", ayuda="A: ver  X: sacar  B: volver")
+        super().__init__("Favoritos", ayuda="A: ver  X o F: sacar  B: volver")
         self.cargar()
 
     def cargar(self):
@@ -2199,7 +2205,7 @@ class InternetFavoritos(Lista):
             abrir_item_archivo(app, {"id": entrada["id"], "titulo": entrada["titulo"]})
 
     def accion(self, app, boton):
-        if boton == "x" and self.items and isinstance(self.items[self.sel].dato, dict):
+        if es_boton_favorito(boton) and self.items and isinstance(self.items[self.sel].dato, dict):
             from . import favoritos
             favoritos.alternar_internet(self.items[self.sel].dato)
             app.avisar("Sacado de Favoritos", 1.5)

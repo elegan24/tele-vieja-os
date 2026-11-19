@@ -30,6 +30,7 @@ TECLAS = {
     pygame.K_PAGEUP: "l", pygame.K_PAGEDOWN: "r",
     pygame.K_TAB: "select", pygame.K_F1: "start",
     pygame.K_F2: "x", pygame.K_INSERT: "x",
+    pygame.K_DELETE: "borrar",   # Supr: borrar (en Videos y en Espacio en el disco)
 }
 # Controles remotos USB ("air mouse" de los TV Box): mandan estas teclas especiales.
 for _nombre, _boton in {

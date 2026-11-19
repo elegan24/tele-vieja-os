@@ -816,6 +816,11 @@ def probar_youtube(app, paso, foto):
         app.actual.sel = 0
         paso("x")                            # a Favoritos
         assert app.actual.items[0].extra == "★ 54:41", app.actual.items[0].extra
+        app.actual.sel = 1
+        paso("letra:F")                      # con la tecla F del teclado, también
+        assert app.actual.items[1].extra == "★ 10:00", app.actual.items[1].extra
+        paso("letra:F")                      # y otra vez lo saca
+        assert app.actual.items[1].extra == "10:00"
         foto("34-youtube")
         app.actual.sel = 1
         paso("a")

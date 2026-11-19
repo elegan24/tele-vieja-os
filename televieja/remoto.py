@@ -367,6 +367,9 @@ PAGINA = """<!doctype html>
     <button data-b="b">↩ Volver</button>
     <button data-b="inicio">⌂ Inicio</button>
   </div>
+  <div class="fila" style="--n:1">
+    <button data-b="x">★ Favorito (X)</button>
+  </div>
 
   <h2>Videos y radio</h2>
   <div class="fila">
@@ -380,8 +383,8 @@ PAGINA = """<!doctype html>
     <button data-b="vol+" data-repetir>🔊 +</button>
   </div>
   <div class="fila" style="--n:2">
-    <button data-b="x">Subtítulos</button>
-    <button data-b="y">Idioma</button>
+    <button data-b="x">X · Subtítulos</button>
+    <button data-b="y">Y · Idioma</button>
   </div>
 
   <h2>Juegos</h2>
